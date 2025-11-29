@@ -1,0 +1,415 @@
+/**
+ * API Service Layer
+ * 
+ * Replace 'http://localhost:5000' with your actual backend URL
+ * For production: 'https://api.ishami.rw' or your domain
+ */
+
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
+// Helper function for API calls
+async function apiCall(endpoint: string, options: RequestInit = {}) {
+  const token = localStorage.getItem('authToken');
+  
+  const headers: HeadersInit = {
+    'Content-Type': 'application/json',
+    ...(token && { Authorization: `Bearer ${token}` }),
+    ...options.headers,
+  };
+
+  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    ...options,
+    headers,
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ message: 'Request failed' }));
+    throw new Error(error.message || `HTTP ${response.status}`);
+  }
+
+  return response.json();
+}
+
+// ============================================
+// AUTHENTICATION APIs
+// ============================================
+
+export const authAPI = {
+  /**
+   * Sign up new user
+   * Backend endpoint: POST /api/auth/signup
+   */
+  signup: async (username: string, email: string, password: string) => {
+    // TODO: Replace with actual API call
+    return apiCall('/api/auth/signup', {
+      method: 'POST',
+      body: JSON.stringify({ username, email, password }),
+    });
+  },
+
+  /**
+   * Sign in existing user
+   * Backend endpoint: POST /api/auth/signin
+   */
+  signin: async (email: string, password: string) => {
+    // TODO: Replace with actual API call
+    return apiCall('/api/auth/signin', {
+      method: 'POST',
+      body: JSON.stringify({ email, password }),
+    });
+  },
+
+  /**
+   * Verify JWT token
+   * Backend endpoint: GET /api/auth/verify
+   */
+  verifyToken: async () => {
+    return apiCall('/api/auth/verify');
+  },
+};
+
+// ============================================
+// QUIZ APIs
+// ============================================
+
+export const quizAPI = {
+  /**
+   * Get quiz questions
+   * Backend endpoint: GET /api/quiz/get_latest?lang=en
+   */
+  getQuestions: async (lang: string = 'en') => {
+    return apiCall(`/api/quiz/get_latest?lang=${lang}`);
+  },
+
+  /**
+   * Submit quiz answers
+   * Backend endpoint: POST /api/quiz/submit
+   */
+  submitQuiz: async (data: {
+    userId: string;
+    answers: Array<{ questionId: string; selectedOption: number; isCorrect: boolean }>;
+    score: number;
+    totalQuestions: number;
+    timeTakenSeconds: number;
+  }) => {
+    return apiCall('/api/quiz/submit', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+};
+
+// ============================================
+// AI ASSISTANT APIs
+// ============================================
+
+export const aiAPI = {
+  /**
+   * Ask AI assistant a question
+   * Backend endpoint: POST /api/ai/ask
+   */
+  askQuestion: async (userId: string, question: string, questionCount: number) => {
+    return apiCall('/api/ai/ask', {
+      method: 'POST',
+      body: JSON.stringify({ userId, question, questionCount }),
+    });
+  },
+};
+
+// ============================================
+// PAYMENT APIs
+// ============================================
+
+export const paymentAPI = {
+  /**
+   * Initiate payment
+   * Backend endpoint: POST /api/payment/initiate
+   */
+  initiatePayment: async (data: {
+    userId: string;
+    amount: number;
+    phone: string;
+    provider: 'mtn' | 'airtel';
+  }) => {
+    return apiCall('/api/payment/initiate', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  /**
+   * Check payment status
+   * Backend endpoint: GET /api/payment/status/:transactionId
+   */
+  checkStatus: async (transactionId: string) => {
+    return apiCall(`/api/payment/status/${transactionId}`);
+  },
+};
+
+// ============================================
+// RESOURCES APIs
+// ============================================
+
+export const resourcesAPI = {
+  /**
+   * Get all resources
+   * Backend endpoint: GET /api/resources
+   */
+  getResources: async () => {
+    return apiCall('/api/resources');
+  },
+
+  /**
+   * Download resource
+   * Backend endpoint: GET /api/resources/download/:id
+   */
+  downloadResource: async (resourceId: string) => {
+    const token = localStorage.getItem('authToken');
+    window.open(`${API_BASE_URL}/api/resources/download/${resourceId}?token=${token}`, '_blank');
+  },
+};
+
+// ============================================
+// LEADERBOARD APIs
+// ============================================
+
+export const leaderboardAPI = {
+  /**
+   * Get leaderboard
+   * Backend endpoint: GET /api/leaderboard?limit=100
+   */
+  getLeaderboard: async (limit: number = 100) => {
+    return apiCall(`/api/leaderboard?limit=${limit}`);
+  },
+};
+
+// ============================================
+// IREMBO APIs
+// ============================================
+
+export const iremboAPI = {
+  /**
+   * Submit Irembo registration
+   * Backend endpoint: POST /api/irembo/register
+   */
+  register: async (data: {
+    userId: string;
+    fullName: string;
+    nationalId: string;
+    phone: string;
+    email: string;
+    language: string;
+    testMode: string;
+    district: string;
+    testDate: string;
+  }) => {
+    return apiCall('/api/irembo/register', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+};
+
+// ============================================
+// SIMULATION APIs
+// ============================================
+
+export const simulationAPI = {
+  /**
+   * Submit simulation results
+   * Backend endpoint: POST /api/simulation/submit
+   */
+  submitResults: async (data: {
+    userId: string;
+    scenarioId: string;
+    score: number;
+    mistakes: number;
+    timeTaken: number;
+    metadata: any;
+  }) => {
+    return apiCall('/api/simulation/submit', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+};
+
+// ============================================
+// ADMIN APIs
+// ============================================
+
+export const adminAPI = {
+  /**
+   * Get dashboard analytics
+   * Backend endpoint: GET /api/admin/analytics
+   */
+  getAnalytics: async () => {
+    return apiCall('/api/admin/analytics');
+  },
+
+  /**
+   * Get all users
+   * Backend endpoint: GET /api/admin/users?page=1&limit=50
+   */
+  getUsers: async (page: number = 1, limit: number = 50) => {
+    return apiCall(`/api/admin/users?page=${page}&limit=${limit}`);
+  },
+
+  /**
+   * Update user
+   * Backend endpoint: PUT /api/admin/users/:userId
+   */
+  updateUser: async (userId: string, updates: any) => {
+    return apiCall(`/api/admin/users/${userId}`, {
+      method: 'PUT',
+      body: JSON.stringify(updates),
+    });
+  },
+
+  /**
+   * Delete user
+   * Backend endpoint: DELETE /api/admin/users/:userId
+   */
+  deleteUser: async (userId: string) => {
+    return apiCall(`/api/admin/users/${userId}`, {
+      method: 'DELETE',
+    });
+  },
+
+  /**
+   * Get all quiz questions
+   * Backend endpoint: GET /api/admin/questions?page=1&limit=50
+   */
+  getQuestions: async (page: number = 1, limit: number = 50) => {
+    return apiCall(`/api/admin/questions?page=${page}&limit=${limit}`);
+  },
+
+  /**
+   * Create quiz question
+   * Backend endpoint: POST /api/admin/questions
+   */
+  createQuestion: async (question: any) => {
+    return apiCall('/api/admin/questions', {
+      method: 'POST',
+      body: JSON.stringify(question),
+    });
+  },
+
+  /**
+   * Update quiz question
+   * Backend endpoint: PUT /api/admin/questions/:questionId
+   */
+  updateQuestion: async (questionId: string, updates: any) => {
+    return apiCall(`/api/admin/questions/${questionId}`, {
+      method: 'PUT',
+      body: JSON.stringify(updates),
+    });
+  },
+
+  /**
+   * Delete quiz question
+   * Backend endpoint: DELETE /api/admin/questions/:questionId
+   */
+  deleteQuestion: async (questionId: string) => {
+    return apiCall(`/api/admin/questions/${questionId}`, {
+      method: 'DELETE',
+    });
+  },
+
+  /**
+   * Get all payments
+   * Backend endpoint: GET /api/admin/payments?page=1&limit=50
+   */
+  getPayments: async (page: number = 1, limit: number = 50) => {
+    return apiCall(`/api/admin/payments?page=${page}&limit=${limit}`);
+  },
+
+  /**
+   * Get all Irembo applications
+   * Backend endpoint: GET /api/admin/irembo?page=1&limit=50
+   */
+  getIremboApplications: async (page: number = 1, limit: number = 50) => {
+    return apiCall(`/api/admin/irembo?page=${page}&limit=${limit}`);
+  },
+
+  /**
+   * Update Irembo application
+   * Backend endpoint: PUT /api/admin/irembo/:applicationId
+   */
+  updateIremboApplication: async (applicationId: string, updates: any) => {
+    return apiCall(`/api/admin/irembo/${applicationId}`, {
+      method: 'PUT',
+      body: JSON.stringify(updates),
+    });
+  },
+
+  /**
+   * Upload resource
+   * Backend endpoint: POST /api/admin/resources
+   */
+  uploadResource: async (formData: FormData) => {
+    const token = localStorage.getItem('authToken');
+    const response = await fetch(`${API_BASE_URL}/api/admin/resources`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      body: formData,
+    });
+    return response.json();
+  },
+
+  /**
+   * Delete resource
+   * Backend endpoint: DELETE /api/admin/resources/:resourceId
+   */
+  deleteResource: async (resourceId: string) => {
+    return apiCall(`/api/admin/resources/${resourceId}`, {
+      method: 'DELETE',
+    });
+  },
+
+  /**
+   * Send push notification
+   * Backend endpoint: POST /api/admin/notifications
+   */
+  sendNotification: async (data: {
+    title: string;
+    body: string;
+    segment: string;
+    scheduledAt?: string;
+  }) => {
+    return apiCall('/api/admin/notifications', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  /**
+   * Get fraud logs
+   * Backend endpoint: GET /api/admin/fraud-logs?page=1&limit=50
+   */
+  getFraudLogs: async (page: number = 1, limit: number = 50) => {
+    return apiCall(`/api/admin/fraud-logs?page=${page}&limit=${limit}`);
+  },
+
+  /**
+   * Get user logs
+   * Backend endpoint: GET /api/admin/user-logs/:userId
+   */
+  getUserLogs: async (userId: string) => {
+    return apiCall(`/api/admin/user-logs/${userId}`);
+  },
+};
+
+export default {
+  auth: authAPI,
+  quiz: quizAPI,
+  ai: aiAPI,
+  payment: paymentAPI,
+  resources: resourcesAPI,
+  leaderboard: leaderboardAPI,
+  irembo: iremboAPI,
+  simulation: simulationAPI,
+  admin: adminAPI,
+};

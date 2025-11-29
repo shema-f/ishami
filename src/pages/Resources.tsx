@@ -1,0 +1,329 @@
+import { motion } from 'motion/react';
+import { FileText, Video, Image as ImageIcon, Download, Lock } from 'lucide-react';
+import { useState } from 'react';
+import { useAuth } from '../contexts/AuthContext';
+
+interface Resource {
+  id: number;
+  title_en: string;
+  title_kiny: string;
+  type: 'PDF' | 'Video' | 'Image';
+  category: string;
+  isPremium: boolean;
+  fileUrl: string;
+  thumbnail?: string;
+  size?: string;
+}
+
+const mockResources: Resource[] = [
+  {
+    id: 1,
+    title_en: "Rwanda Traffic Signs Complete Guide",
+    title_kiny: "Ibyapa by'Umuhanda - Umuyoboro Wuzuye",
+    type: "PDF",
+    category: "Signs",
+    isPremium: false,
+    fileUrl: "#",
+    size: "2.5 MB"
+  },
+  {
+    id: 2,
+    title_en: "Parking Techniques Video Tutorial",
+    title_kiny: "Amavideo yo Kwiga Guhagarika",
+    type: "Video",
+    category: "Practical",
+    isPremium: true,
+    fileUrl: "#",
+    thumbnail: "https://images.unsplash.com/photo-1560361635-9d6b6befc49b"
+  },
+  {
+    id: 3,
+    title_en: "Speed Limit Signs Reference",
+    title_kiny: "Ibyapa by'Umuvuduko",
+    type: "Image",
+    category: "Signs",
+    isPremium: false,
+    fileUrl: "#",
+    size: "1.2 MB"
+  },
+  {
+    id: 4,
+    title_en: "Road Safety Rules Handbook",
+    title_kiny: "Igitabo cy'Umutekano ku Mihanda",
+    type: "PDF",
+    category: "Safety",
+    isPremium: false,
+    fileUrl: "#",
+    size: "3.8 MB"
+  },
+  {
+    id: 5,
+    title_en: "Overtaking Rules & Techniques",
+    title_kiny: "Amategeko yo Gusiganwa",
+    type: "Video",
+    category: "Advanced",
+    isPremium: true,
+    fileUrl: "#",
+    thumbnail: "https://images.unsplash.com/photo-1760689036908-b37db1b784b8"
+  },
+  {
+    id: 6,
+    title_en: "Emergency Procedures Guide",
+    title_kiny: "Ibikoresho by'Akaga",
+    type: "PDF",
+    category: "Safety",
+    isPremium: true,
+    fileUrl: "#",
+    size: "1.5 MB"
+  },
+  {
+    id: 7,
+    title_en: "Warning Signs Collection",
+    title_kiny: "Ibyapa by'Umuburo",
+    type: "Image",
+    category: "Signs",
+    isPremium: false,
+    fileUrl: "#",
+    size: "2.1 MB"
+  },
+  {
+    id: 8,
+    title_en: "Night Driving Safety Video",
+    title_kiny: "Gutwara Nijoro - Umutekano",
+    type: "Video",
+    category: "Advanced",
+    isPremium: true,
+    fileUrl: "#",
+    thumbnail: "https://images.unsplash.com/photo-1641295437952-092f7e8b65ba"
+  }
+];
+
+export default function Resources() {
+  const { user } = useAuth();
+  const [filter, setFilter] = useState<'All' | 'PDF' | 'Video' | 'Image'>('All');
+  const [showPaywall, setShowPaywall] = useState(false);
+
+  const filteredResources = mockResources.filter(
+    resource => filter === 'All' || resource.type === filter
+  );
+
+  const handleDownload = (resource: Resource) => {
+    if (resource.isPremium && !user?.isPro) {
+      setShowPaywall(true);
+      return;
+    }
+    
+    // TODO: Implement actual download logic
+    console.log('Downloading:', resource.title_en);
+    // In production, this would trigger a download from your backend
+    // window.open(resource.fileUrl, '_blank');
+  };
+
+  const getIcon = (type: string) => {
+    switch (type) {
+      case 'PDF':
+        return <FileText className="w-6 h-6" />;
+      case 'Video':
+        return <Video className="w-6 h-6" />;
+      case 'Image':
+        return <ImageIcon className="w-6 h-6" />;
+      default:
+        return <FileText className="w-6 h-6" />;
+    }
+  };
+
+  const getTypeColor = (type: string) => {
+    switch (type) {
+      case 'PDF':
+        return 'from-red-500 to-red-700';
+      case 'Video':
+        return 'from-purple-500 to-purple-700';
+      case 'Image':
+        return 'from-green-500 to-green-700';
+      default:
+        return 'from-gray-500 to-gray-700';
+    }
+  };
+
+  return (
+    <div className="min-h-screen py-8 px-4">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="text-center mb-12"
+        >
+          <h1 className="text-gray-900 dark:text-white mb-4">
+            Learning Resources
+          </h1>
+          <p className="text-gray-600 dark:text-gray-400 text-lg">
+            Download study materials, videos, and reference images
+            <span className="block mt-1 text-[#00A3AD]">
+              Kuramo Ibikoresho byo Kwiga
+            </span>
+          </p>
+        </motion.div>
+
+        {/* Filter Buttons */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          className="flex flex-wrap justify-center gap-3 mb-12"
+        >
+          {['All', 'PDF', 'Video', 'Image'].map((filterOption) => (
+            <button
+              key={filterOption}
+              onClick={() => setFilter(filterOption as typeof filter)}
+              className={`px-6 py-3 rounded-xl transition-all duration-300 ${
+                filter === filterOption
+                  ? 'bg-gradient-to-r from-[#00A3AD] to-[#008891] text-white shadow-lg shadow-[#00A3AD]/50'
+                  : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 hover:border-[#00A3AD]'
+              }`}
+            >
+              {filterOption}
+            </button>
+          ))}
+        </motion.div>
+
+        {/* Resources Grid */}
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filteredResources.map((resource, index) => (
+            <motion.div
+              key={resource.id}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: index * 0.1 }}
+              whileHover={{ y: -8 }}
+              className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl rounded-2xl overflow-hidden border border-gray-200/20 dark:border-gray-700/20 shadow-xl group"
+            >
+              {/* Thumbnail or Icon Header */}
+              <div className={`relative h-48 bg-gradient-to-br ${getTypeColor(resource.type)} flex items-center justify-center`}>
+                {resource.thumbnail ? (
+                  <img
+                    src={resource.thumbnail}
+                    alt={resource.title_en}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="text-white">
+                    {getIcon(resource.type)}
+                  </div>
+                )}
+                
+                {/* Premium Badge */}
+                {resource.isPremium && (
+                  <div className="absolute top-4 right-4 px-3 py-1 bg-gradient-to-r from-yellow-400 to-orange-500 text-white text-xs rounded-full flex items-center space-x-1">
+                    <Lock className="w-3 h-3" />
+                    <span>Pro</span>
+                  </div>
+                )}
+
+                {/* Type Badge */}
+                <div className="absolute bottom-4 left-4 px-3 py-1 bg-black/50 backdrop-blur-md text-white text-xs rounded-full">
+                  {resource.type}
+                </div>
+              </div>
+
+              {/* Content */}
+              <div className="p-6">
+                <div className="mb-2">
+                  <span className="text-xs text-[#00A3AD] uppercase tracking-wide">
+                    {resource.category}
+                  </span>
+                </div>
+                
+                <h3 className="text-gray-900 dark:text-white mb-2">
+                  {resource.title_en}
+                </h3>
+                <p className="text-gray-600 dark:text-gray-400 text-sm mb-4">
+                  {resource.title_kiny}
+                </p>
+
+                {resource.size && (
+                  <p className="text-gray-500 dark:text-gray-500 text-xs mb-4">
+                    Size: {resource.size}
+                  </p>
+                )}
+
+                <button
+                  onClick={() => handleDownload(resource)}
+                  className={`w-full px-6 py-3 rounded-xl flex items-center justify-center space-x-2 transition-all duration-300 ${
+                    resource.isPremium && !user?.isPro
+                      ? 'bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400'
+                      : 'bg-gradient-to-r from-[#00A3AD] to-[#008891] text-white hover:shadow-xl hover:shadow-[#00A3AD]/50'
+                  }`}
+                >
+                  {resource.isPremium && !user?.isPro ? (
+                    <>
+                      <Lock className="w-4 h-4" />
+                      <span>Pro Only</span>
+                    </>
+                  ) : (
+                    <>
+                      <Download className="w-4 h-4" />
+                      <span>Download</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </motion.div>
+          ))}
+        </div>
+
+        {/* Empty State */}
+        {filteredResources.length === 0 && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="text-center py-20"
+          >
+            <p className="text-gray-600 dark:text-gray-400">
+              No resources found for this filter.
+            </p>
+          </motion.div>
+        )}
+      </div>
+
+      {/* Paywall Modal */}
+      {showPaywall && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+          onClick={() => setShowPaywall(false)}
+        >
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white dark:bg-gray-800 rounded-3xl p-8 max-w-md w-full shadow-2xl"
+          >
+            <div className="text-center">
+              <div className="inline-flex p-4 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-full mb-4">
+                <Lock className="w-12 h-12 text-white" />
+              </div>
+              <h2 className="text-gray-900 dark:text-white mb-4">Premium Resource</h2>
+              <p className="text-gray-600 dark:text-gray-400 mb-6">
+                This resource is only available to Pro members. 
+                Upgrade for only <span className="text-[#00A3AD]">1,000 RWF</span> to access all premium content.
+              </p>
+              <div className="space-y-3">
+                <button className="w-full px-6 py-4 bg-gradient-to-r from-[#00A3AD] to-[#008891] text-white rounded-xl hover:shadow-xl transition-all duration-300">
+                  Upgrade to Pro - 1,000 RWF
+                </button>
+                <button
+                  onClick={() => setShowPaywall(false)}
+                  className="w-full px-6 py-4 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                >
+                  Browse Free Resources
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </div>
+  );
+}

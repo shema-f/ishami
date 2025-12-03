@@ -1,21 +1,46 @@
 import { Link } from 'react-router';
 import { motion } from 'motion/react';
 import { Zap, Brain, BookOpen, Trophy, Car, ChevronRight, Star, Mail } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ImageWithFallback } from '../components/figma/ImageWithFallback';
+import { newsletterAPI } from '../services/api';
 import FlipCard from '../components/FlipCard';
 import TestimonialCarousel from '../components/TestimonialCarousel';
 
 export default function Home() {
   const [email, setEmail] = useState('');
   const [subscribed, setSubscribed] = useState(false);
+  const [typedPrimary, setTypedPrimary] = useState('');
+  const [typedSecondary, setTypedSecondary] = useState('');
+  const fullPrimary = 'Learn Rwanda Traffic Rules Easily';
+  const fullSecondary = "Amategeko y'Umuhanda";
 
-  const handleNewsletterSubmit = (e: React.FormEvent) => {
+  useEffect(() => {
+    let i = 0, j = 0;
+    const speed = 35;
+    const timer = setInterval(() => {
+      if (i < fullPrimary.length) {
+        setTypedPrimary(prev => prev + fullPrimary[i]);
+        i++;
+      } else if (j < fullSecondary.length) {
+        setTypedSecondary(prev => prev + fullSecondary[j]);
+        j++;
+      } else {
+        clearInterval(timer);
+      }
+    }, speed);
+    return () => clearInterval(timer);
+  }, []);
+
+  const handleNewsletterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // TODO: Integrate with Mailchimp or similar service
-    console.log('Newsletter subscription:', email);
-    setSubscribed(true);
-    setEmail('');
+    try {
+      const res = await newsletterAPI.subscribe(email);
+      if (res?.success) {
+        setSubscribed(true);
+        setEmail('');
+      }
+    } catch {}
   };
 
   const features = [
@@ -67,8 +92,13 @@ export default function Home() {
               transition={{ duration: 0.6 }}
             >
               <h1 className="text-gray-900 dark:text-white mb-6">
-                Learn Rwanda Traffic Rules Easily
-                <span className="block text-[#00A3AD] mt-2">Amategeko y'Umuhanda</span>
+                <span className="inline-block">
+                  {typedPrimary}
+                  <span className="inline-block w-0.5 h-6 bg-gray-900 dark:bg-white align-middle ml-1 animate-pulse" />
+                </span>
+                <span className="block text-[#00A3AD] mt-2">
+                  {typedSecondary}
+                </span>
               </h1>
               <p className="text-gray-600 dark:text-gray-400 mb-8">
                 Master the Rwanda Traffic Code with interactive quizzes, AI-powered assistance, 

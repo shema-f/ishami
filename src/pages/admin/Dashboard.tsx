@@ -4,7 +4,7 @@ import {
   Users, DollarSign, BookOpen, TrendingUp, Award, 
   AlertTriangle, CheckCircle, Clock 
 } from 'lucide-react';
-import { adminAPI } from '../../services/api';
+import { adminAPI, leaderboardAPI } from '../../services/api';
 import { useNavigate } from 'react-router';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -35,6 +35,11 @@ export default function AdminDashboard() {
   const navigate = useNavigate();
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [newsletterSubscribers, setNewsletterSubscribers] = useState<number>(0);
+  const [newsletterSubject, setNewsletterSubject] = useState('');
+  const [newsletterBody, setNewsletterBody] = useState('');
+  const [recentCampaigns, setRecentCampaigns] = useState<Array<{ id: string; subject: string; status: string; recipientsCount: number; deliveredCount: number; failedCount: number; sentAt?: string }>>([]);
+  const [leaderboard, setLeaderboard] = useState<Array<{ userId: string; username: string; bestScore: number }>>([]);
 
   useEffect(() => {
     // Check if user is admin
@@ -44,72 +49,36 @@ export default function AdminDashboard() {
     }
 
     loadAnalytics();
+    loadNewsletterData();
+    loadLeaderboard();
   }, [user, navigate]);
 
   const loadAnalytics = async () => {
     try {
       setLoading(true);
-      
-      // TODO: Replace with actual API call
-      // const data = await adminAPI.getAnalytics();
-      
-      // Mock data for demonstration
-      const mockData: AnalyticsData = {
-        totalUsers: 10547,
-        proUsers: 1432,
-        totalRevenue: 1432000,
-        todaySignups: 47,
-        todayQuizAttempts: 312,
-        conversionRate: 13.6,
-        paymentSuccessRate: 94.2,
-        topQuestions: [
-          {
-            id: '1',
-            question: 'What does a red octagonal sign mean?',
-            failRate: 67
-          },
-          {
-            id: '2',
-            question: 'Speed limit in urban areas',
-            failRate: 54
-          },
-          {
-            id: '3',
-            question: 'Right of way at roundabout',
-            failRate: 48
-          }
-        ],
-        recentPayments: [
-          {
-            id: '1',
-            username: 'Jean Claude M.',
-            amount: 1000,
-            status: 'SUCCESS',
-            date: new Date().toISOString()
-          },
-          {
-            id: '2',
-            username: 'Divine U.',
-            amount: 1000,
-            status: 'SUCCESS',
-            date: new Date().toISOString()
-          },
-          {
-            id: '3',
-            username: 'Patrick N.',
-            amount: 1000,
-            status: 'PENDING',
-            date: new Date().toISOString()
-          }
-        ]
-      };
-      
-      setAnalytics(mockData);
+      const data = await adminAPI.getAnalytics();
+      setAnalytics(data);
     } catch (error) {
       console.error('Failed to load analytics:', error);
     } finally {
       setLoading(false);
     }
+  };
+
+  const loadNewsletterData = async () => {
+    try {
+      const subs = await adminAPI.getNewsletterSubscribers(1, 1);
+      setNewsletterSubscribers(subs.total || 0);
+      const camps = await adminAPI.getNewsletterCampaigns(1, 5);
+      setRecentCampaigns(camps.campaigns || []);
+    } catch {}
+  };
+
+  const loadLeaderboard = async () => {
+    try {
+      const lb = await leaderboardAPI.getLeaderboard(10);
+      setLeaderboard(lb.leaderboard || []);
+    } catch {}
   };
 
   if (loading) {
@@ -356,6 +325,83 @@ export default function AdminDashboard() {
                 ))}
               </tbody>
             </table>
+          </div>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.8 }}
+          className="bg-white dark:bg-gray-800 rounded-2xl p-6 border border-gray-200 dark:border-gray-700 mt-8"
+        >
+          <h3 className="text-gray-900 dark:text-white mb-4">Newsletter</h3>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">Subscribers: {newsletterSubscribers}</p>
+          <div className="grid md:grid-cols-2 gap-4">
+            <div className="space-y-3">
+              <input
+                type="text"
+                value={newsletterSubject}
+                onChange={(e) => setNewsletterSubject(e.target.value)}
+                placeholder="Subject"
+                className="w-full px-4 py-3 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl"
+              />
+              <textarea
+                value={newsletterBody}
+                onChange={(e) => setNewsletterBody(e.target.value)}
+                placeholder="Message"
+                rows={5}
+                className="w-full px-4 py-3 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl"
+              />
+              <button
+                onClick={async () => {
+                  if (!newsletterSubject || !newsletterBody) return;
+                  const r = await adminAPI.sendNewsletter(newsletterSubject, newsletterBody);
+                  setNewsletterSubject('');
+                  setNewsletterBody('');
+                  await loadNewsletterData();
+                }}
+                className="px-6 py-3 bg-gradient-to-r from-[#00A3AD] to-[#008891] text-white rounded-xl"
+              >
+                Send Newsletter
+              </button>
+            </div>
+            <div>
+              <h4 className="text-gray-900 dark:text-white mb-2">Recent Campaigns</h4>
+              <div className="space-y-3">
+                {recentCampaigns.map(c => (
+                  <div key={c.id} className="border rounded-xl p-4 bg-white dark:bg-gray-700">
+                    <p className="text-gray-900 dark:text-white">{c.subject}</p>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">{c.status} • {c.recipientsCount} recipients • {c.deliveredCount} delivered</p>
+                  </div>
+                ))}
+                {recentCampaigns.length === 0 && (
+                  <p className="text-sm text-gray-600 dark:text-gray-400">No campaigns yet</p>
+                )}
+              </div>
+            </div>
+          </div>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.9 }}
+          className="bg-white dark:bg-gray-800 rounded-2xl p-6 border border-gray-200 dark:border-gray-700 mt-8"
+        >
+          <h3 className="text-gray-900 dark:text-white mb-4">Top Learners</h3>
+          <div className="space-y-3">
+            {leaderboard.map((e, i) => (
+              <div key={e.userId} className="flex items-center justify-between border rounded-xl p-4 bg-white dark:bg-gray-700">
+                <div className="flex items-center space-x-3">
+                  <div className="w-8 h-8 rounded-full bg-[#00A3AD]/10 text-[#00A3AD] flex items-center justify-center">{i+1}</div>
+                  <p className="text-gray-900 dark:text-white">{e.username}</p>
+                </div>
+                <span className="text-gray-600 dark:text-gray-400">Best Score: {e.bestScore}</span>
+              </div>
+            ))}
+            {leaderboard.length === 0 && (
+              <p className="text-sm text-gray-600 dark:text-gray-400">No leaderboard entries yet</p>
+            )}
           </div>
         </motion.div>
       </div>

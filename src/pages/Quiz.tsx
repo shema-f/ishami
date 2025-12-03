@@ -3,114 +3,41 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Clock, Award, Zap, CheckCircle, XCircle, Sparkles } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router';
+import { quizAPI } from '../services/api';
 
 interface QuizQuestion {
-  id: number;
-  category_en: string;
-  category_kiny: string;
-  question_kiny: string;
-  question_en: string;
-  options: Array<{
-    text_kiny: string;
-    text_en: string;
-    isCorrect: boolean;
-  }>;
-  imageUrl?: string;
+  id: string;
+  category: string;
+  question: string;
+  options: Array<{ text: string; isCorrect: boolean }>;
+  image?: string | null;
 }
 
-// Mock quiz data
-const mockQuestions: QuizQuestion[] = [
-  {
-    id: 1,
-    category_en: "Traffic Signs",
-    category_kiny: "Ibyapa",
-    question_kiny: "Icyapa gifite ibara ryera n'umutuku bikora iki?",
-    question_en: "What does a red and white sign indicate?",
-    options: [
-      { text_kiny: "Ibibujijwe", text_en: "Prohibition", isCorrect: true },
-      { text_kiny: "Umuburo", text_en: "Warning", isCorrect: false },
-      { text_kiny: "Amakuru", text_en: "Information", isCorrect: false },
-      { text_kiny: "Ibisabwa", text_en: "Mandatory", isCorrect: false }
-    ]
-  },
-  {
-    id: 2,
-    category_en: "Speed Limits",
-    category_kiny: "Umuvuduko",
-    question_kiny: "Umuvuduko ntarengwa mu mujyi ni uwuhe?",
-    question_en: "What is the maximum speed limit in the city?",
-    options: [
-      { text_kiny: "40 km/h", text_en: "40 km/h", isCorrect: false },
-      { text_kiny: "50 km/h", text_en: "50 km/h", isCorrect: true },
-      { text_kiny: "60 km/h", text_en: "60 km/h", isCorrect: false },
-      { text_kiny: "70 km/h", text_en: "70 km/h", isCorrect: false }
-    ]
-  },
-  {
-    id: 3,
-    category_en: "Right of Way",
-    category_kiny: "Uburenganzira",
-    question_kiny: "Ni nde ugomba guhembwa inzira ku rusasanya?",
-    question_en: "Who has the right of way at an intersection?",
-    options: [
-      { text_kiny: "Imodoka iva iburyo", text_en: "Vehicle from the right", isCorrect: true },
-      { text_kiny: "Imodoka iva ibumoso", text_en: "Vehicle from the left", isCorrect: false },
-      { text_kiny: "Imodoka nini", text_en: "Larger vehicle", isCorrect: false },
-      { text_kiny: "Imodoka yihuse", text_en: "Faster vehicle", isCorrect: false }
-    ]
-  },
-  {
-    id: 4,
-    category_en: "Parking",
-    category_kiny: "Guhagarika",
-    question_kiny: "Ni iki kigomba kurangirwa mbere yo kuva mu modoka?",
-    question_en: "What must you check before exiting your vehicle?",
-    options: [
-      { text_kiny: "Niba hari ibinyabiziga", text_en: "If there are other vehicles", isCorrect: false },
-      { text_kiny: "Niba hari abantu", text_en: "If there are people", isCorrect: false },
-      { text_kiny: "Niba hari amagare", text_en: "If there are bicycles", isCorrect: false },
-      { text_kiny: "Byose byavuzwe haruguru", text_en: "All of the above", isCorrect: true }
-    ]
-  },
-  {
-    id: 5,
-    category_en: "Emergency",
-    category_kiny: "Akaga",
-    question_kiny: "Ni iyihe nimero yo guhamagara polisi?",
-    question_en: "What is the police emergency number?",
-    options: [
-      { text_kiny: "112", text_en: "112", isCorrect: false },
-      { text_kiny: "113", text_en: "113", isCorrect: true },
-      { text_kiny: "114", text_en: "114", isCorrect: false },
-      { text_kiny: "911", text_en: "911", isCorrect: false }
-    ]
-  },
-  // Questions 6-20 (Premium)
-  ...Array.from({ length: 15 }, (_, i) => ({
-    id: i + 6,
-    category_en: "Advanced Rules",
-    category_kiny: "Amategeko Akomeye",
-    question_kiny: `Ikibazo ${i + 6} - Pro access required`,
-    question_en: `Question ${i + 6} - Pro access required`,
-    options: [
-      { text_kiny: "Igisubizo A", text_en: "Answer A", isCorrect: true },
-      { text_kiny: "Igisubizo B", text_en: "Answer B", isCorrect: false },
-      { text_kiny: "Igisubizo C", text_en: "Answer C", isCorrect: false },
-      { text_kiny: "Igisubizo D", text_en: "Answer D", isCorrect: false }
-    ]
-  }))
-];
+interface QuizCard {
+  id: string;
+  title: string;
+  category: string;
+  image: string | null;
+  questionCount: number;
+}
+
+ 
 
 export default function Quiz() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [quizzes, setQuizzes] = useState<QuizCard[]>([]);
+  const [selectedQuiz, setSelectedQuiz] = useState<QuizCard | null>(null);
+  const [questions, setQuestions] = useState<QuizQuestion[]>([]);
+  const [paywallAfter, setPaywallAfter] = useState<number>(6);
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
   const [answered, setAnswered] = useState(false);
   const [score, setScore] = useState(0);
-  const [timeLeft, setTimeLeft] = useState(1200); // 20 minutes = 1200 seconds
+  const [timeLeft, setTimeLeft] = useState(1200);
   const [showPaywall, setShowPaywall] = useState(false);
   const [quizCompleted, setQuizCompleted] = useState(false);
+  const [answers, setAnswers] = useState<Array<{ questionId: string; selectedOption: number; isCorrect: boolean }>>([]);
 
   useEffect(() => {
     if (timeLeft > 0 && !quizCompleted) {
@@ -121,11 +48,41 @@ export default function Quiz() {
     }
   }, [timeLeft, quizCompleted]);
 
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await quizAPI.listQuizzes();
+        setQuizzes(res.quizzes);
+      } catch (error) {
+        console.error('Failed to load quizzes:', error);
+      }
+    })();
+  }, []);
+
+  const startQuiz = async (quiz: QuizCard) => {
+    try {
+      const res = await quizAPI.getQuiz(quiz.id);
+      setSelectedQuiz(quiz);
+      setQuestions(res.questions);
+      setPaywallAfter(res.paywallAfter || 6);
+      setCurrentQuestion(0);
+      setSelectedAnswer(null);
+      setAnswered(false);
+      setScore(0);
+      setQuizCompleted(false);
+      setShowPaywall(false);
+      setTimeLeft(1200);
+      setAnswers([]);
+    } catch (error) {
+      console.error('Failed to start quiz:', error);
+    }
+  };
+
   const handleAnswerSelect = (optionIndex: number) => {
     if (answered) return;
 
-    // Check for paywall
-    if (!user?.isPro && currentQuestion >= 5) {
+    // Paywall after question 6 for non-Pro
+    if (!user?.isPro && currentQuestion >= paywallAfter) {
       setShowPaywall(true);
       return;
     }
@@ -133,18 +90,38 @@ export default function Quiz() {
     setSelectedAnswer(optionIndex);
     setAnswered(true);
 
-    if (mockQuestions[currentQuestion].options[optionIndex].isCorrect) {
+    if (questions[currentQuestion].options[optionIndex].isCorrect) {
       setScore(score + 1);
     }
+
+    const q = questions[currentQuestion];
+    const entry = { questionId: q.id, selectedOption: optionIndex, isCorrect: q.options[optionIndex].isCorrect };
+    setAnswers(prev => {
+      const idx = prev.findIndex(a => a.questionId === q.id);
+      if (idx >= 0) {
+        const next = [...prev];
+        next[idx] = entry;
+        return next;
+      }
+      return [...prev, entry];
+    });
   };
 
   const handleNext = () => {
-    if (currentQuestion < mockQuestions.length - 1) {
+    if (currentQuestion < questions.length - 1) {
       setCurrentQuestion(currentQuestion + 1);
       setSelectedAnswer(null);
       setAnswered(false);
     } else {
       setQuizCompleted(true);
+    }
+  };
+
+  const handlePrev = () => {
+    if (currentQuestion > 0) {
+      setCurrentQuestion(currentQuestion - 1);
+      setSelectedAnswer(null);
+      setAnswered(false);
     }
   };
 
@@ -156,7 +133,25 @@ export default function Quiz() {
 
   const isTimeRunningOut = timeLeft <= 60;
 
-  if (quizCompleted) {
+  useEffect(() => {
+    (async () => {
+      if (quizCompleted && user && selectedQuiz) {
+        try {
+          await quizAPI.submitQuiz({
+            userId: user.id,
+            answers,
+            score,
+            totalQuestions: questions.length,
+            timeTakenSeconds: 1200 - timeLeft,
+          });
+        } catch (e) {
+          console.error('Failed to submit quiz:', e);
+        }
+      }
+    })();
+  }, [quizCompleted]);
+
+  if (selectedQuiz && quizCompleted) {
     const percentage = Math.round((score / 20) * 100);
     const passed = percentage >= 70;
 
@@ -220,7 +215,40 @@ export default function Quiz() {
     );
   }
 
-  const question = mockQuestions[currentQuestion];
+  if (!selectedQuiz) {
+    return (
+      <div className="min-h-screen py-8 px-4">
+        <div className="max-w-7xl mx-auto">
+          <h1 className="text-gray-900 dark:text-white mb-6">Hitamo Ikizamini</h1>
+          <p className="text-gray-600 dark:text-gray-400 mb-8">Buri kizamini kigizwe n'ibibazo 20. Ifoto izashyirwa hano.</p>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {quizzes.map((q, idx) => (
+              <motion.div
+                key={q.id}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden shadow flex flex-col h-[320px]"
+              >
+                <img
+                  src={`/src/assets/quiz${Math.min(idx + 1, 20)}.png`}
+                  alt="Quiz"
+                  className="w-full h-32 sm:h-36 md:h-40 object-cover"
+                />
+                <div className="p-4 flex flex-col flex-1">
+                  <h3 className="text-gray-900 dark:text-white mb-1 line-clamp-2">{q.title}</h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">{q.category}</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-500">Ibibazo: {q.questionCount}</p>
+                  <button onClick={() => startQuiz(q)} className="mt-auto w-full px-4 py-2 bg-gradient-to-r from-[#00A3AD] to-[#008891] text-white rounded-xl">Tangira</button>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const question = questions[currentQuestion];
 
   return (
     <div className="min-h-screen py-8 px-4">
@@ -249,13 +277,13 @@ export default function Quiz() {
                 <div className="flex justify-between items-center mb-2">
                   <p className="text-sm text-gray-600 dark:text-gray-400">Progress</p>
                   <p className="text-sm text-gray-900 dark:text-white">
-                    {currentQuestion + 1} of {mockQuestions.length}
+                    {currentQuestion + 1} of {questions.length}
                   </p>
                 </div>
                 <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
                   <motion.div
                     initial={{ width: 0 }}
-                    animate={{ width: `${((currentQuestion + 1) / mockQuestions.length) * 100}%` }}
+                    animate={{ width: `${((currentQuestion + 1) / questions.length) * 100}%` }}
                     className="h-full bg-gradient-to-r from-[#00A3AD] to-[#008891]"
                   />
                 </div>
@@ -284,18 +312,20 @@ export default function Quiz() {
           >
             {/* Category Badge */}
             <div className="inline-flex items-center space-x-2 px-4 py-2 bg-[#00A3AD]/10 dark:bg-[#00A3AD]/20 rounded-full mb-6">
-              <span className="text-sm text-[#00A3AD]">{question.category_en}</span>
-              <span className="text-sm text-gray-400">•</span>
-              <span className="text-sm text-[#00A3AD]">{question.category_kiny}</span>
+              <span className="text-sm text-[#00A3AD]">{selectedQuiz.category}</span>
             </div>
+
+            {/* Image (if provided) */}
+            {question.image && (
+              <div className="mb-6">
+                <img src={question.image as any} alt="Question" className="w-full max-h-64 object-contain rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800" />
+              </div>
+            )}
 
             {/* Question */}
             <div className="mb-8">
-              <h2 className="text-gray-900 dark:text-white mb-3">
-                {question.question_en}
-              </h2>
-              <p className="text-[#00A3AD] text-lg">
-                {question.question_kiny}
+              <p className="text-gray-900 dark:text-white text-lg">
+                {question.question}
               </p>
             </div>
 
@@ -324,10 +354,7 @@ export default function Quiz() {
                     <div className="flex items-center justify-between">
                       <div className="flex-1">
                         <p className="text-gray-900 dark:text-white mb-1">
-                          {option.text_en}
-                        </p>
-                        <p className="text-gray-600 dark:text-gray-400 text-sm">
-                          {option.text_kiny}
+                          {option.text}
                         </p>
                       </div>
                       {showResult && (
@@ -345,21 +372,27 @@ export default function Quiz() {
               })}
             </div>
 
-            {/* Next Button */}
-            {answered && (
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="mt-8"
+            {/* Navigation Buttons */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mt-8 flex items-center gap-3"
+            >
+              <button
+                onClick={handlePrev}
+                disabled={currentQuestion === 0}
+                className={`px-6 py-4 rounded-xl border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-all ${currentQuestion === 0 ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-50 dark:hover:bg-gray-600'}`}
               >
-                <button
-                  onClick={handleNext}
-                  className="w-full px-8 py-4 bg-gradient-to-r from-[#00A3AD] to-[#008891] text-white rounded-xl hover:shadow-xl hover:shadow-[#00A3AD]/50 transition-all duration-300"
-                >
-                  {currentQuestion < mockQuestions.length - 1 ? 'Next Question' : 'Finish Quiz'}
-                </button>
-              </motion.div>
-            )}
+                Previous
+              </button>
+              <button
+                onClick={handleNext}
+                disabled={!answered}
+                className={`flex-1 px-8 py-4 rounded-xl transition-all duration-300 ${!answered ? 'opacity-50 cursor-not-allowed bg-gray-300 dark:bg-gray-600 text-gray-700 dark:text-gray-300' : 'bg-gradient-to-r from-[#00A3AD] to-[#008891] text-white hover:shadow-xl hover:shadow-[#00A3AD]/50'}`}
+              >
+                {currentQuestion < questions.length - 1 ? 'Next Question' : 'Finish Quiz'}
+              </button>
+            </motion.div>
           </motion.div>
         </AnimatePresence>
       </div>
@@ -384,8 +417,8 @@ export default function Quiz() {
               </div>
               <h2 className="text-gray-900 dark:text-white mb-4">Unlock Pro Access</h2>
               <p className="text-gray-600 dark:text-gray-400 mb-6">
-                You've completed 5 free questions! Unlock all 20 questions, unlimited quizzes, 
-                and premium features for only <span className="text-[#00A3AD]">1,000 RWF</span>.
+                You've completed 6 free questions! Unlock all 20 questions, unlimited quizzes, 
+                and premium features for only <span className="text-[#00A3AD]">100 RWF</span>.
               </p>
               
               <div className="bg-[#00A3AD]/10 rounded-xl p-4 mb-6">
@@ -412,7 +445,7 @@ export default function Quiz() {
 
               <div className="space-y-3">
                 <button className="w-full px-6 py-4 bg-gradient-to-r from-[#00A3AD] to-[#008891] text-white rounded-xl hover:shadow-xl transition-all duration-300">
-                  Upgrade Now - 1,000 RWF
+                  Upgrade Now - 100 RWF
                 </button>
                 <button
                   onClick={() => setShowPaywall(false)}

@@ -307,11 +307,11 @@ export default function Resources() {
               <h2 className="text-gray-900 dark:text-white mb-4">Premium Resource</h2>
               <p className="text-gray-600 dark:text-gray-400 mb-6">
                 This resource is only available to Pro members. 
-                Upgrade for only <span className="text-[#00A3AD]">1,000 RWF</span> to access all premium content.
+                Upgrade for only <span className="text-[#00A3AD]">100 RWF</span> to access all premium content.
               </p>
               <div className="space-y-3">
                 <button className="w-full px-6 py-4 bg-gradient-to-r from-[#00A3AD] to-[#008891] text-white rounded-xl hover:shadow-xl transition-all duration-300">
-                  Upgrade to Pro - 1,000 RWF
+                  Upgrade to Pro - 100 RWF
                 </button>
                 <button
                   onClick={() => setShowPaywall(false)}

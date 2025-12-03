@@ -46,9 +46,7 @@ export default function AdminLayout() {
             </button>
             
             <Link to="/" className="flex items-center space-x-2">
-              <div className="w-8 h-8 bg-gradient-to-br from-[#00A3AD] to-[#008891] rounded-lg flex items-center justify-center">
-                <span className="text-white text-sm">A</span>
-              </div>
+              <img src="/src/favicon_io/android-chrome-192x192.png" alt="ISHAMI" className="w-8 h-8 rounded-lg" />
               <span className="text-gray-900 dark:text-white">ISHAMI Admin</span>
             </Link>
           </div>

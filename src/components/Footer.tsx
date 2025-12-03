@@ -8,7 +8,10 @@ export default function Footer() {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
           {/* Brand */}
           <div className="col-span-1 md:col-span-2">
-            <h3 className="text-[#00A3AD] mb-4">ISHAMI App</h3>
+            <div className="flex items-center space-x-3 mb-4">
+              <img src="/src/favicon_io/android-chrome-192x192.png" alt="ISHAMI" className="w-8 h-8 rounded-lg" />
+              <h3 className="text-[#00A3AD]">ISHAMI App</h3>
+            </div>
             <p className="text-gray-600 dark:text-gray-400 mb-4">
               Master Rwanda Traffic Rules with interactive quizzes, AI assistance, and 3D simulations. 
               Learn Amategeko y'Umuhanda the modern way.

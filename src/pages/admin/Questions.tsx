@@ -1,35 +1,31 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { Plus, Edit, Trash2, Save, X } from 'lucide-react';
-import { adminAPI } from '../../services/api';
+import { adminAPI, quizAPI } from '../../services/api';
 
 interface QuizQuestion {
   id: string;
-  category_en: string;
-  category_kiny: string;
-  question_en: string;
-  question_kiny: string;
-  options: Array<{
-    text_en: string;
-    text_kiny: string;
-    isCorrect: boolean;
-  }>;
-  imageUrl?: string;
-  isPremium: boolean;
+  quizId?: string;
+  category: string;
+  question: string;
+  options: Array<{ text: string; isCorrect: boolean }>;
+  image?: string | null;
+  isPremium?: boolean;
 }
 
+interface QuizCard { id: string; title: string; category: string; image: string | null; questionCount: number; }
+
 const defaultQuestion: Omit<QuizQuestion, 'id'> = {
-  category_en: '',
-  category_kiny: '',
-  question_en: '',
-  question_kiny: '',
+  quizId: '',
+  category: '',
+  question: '',
   options: [
-    { text_en: '', text_kiny: '', isCorrect: false },
-    { text_en: '', text_kiny: '', isCorrect: false },
-    { text_en: '', text_kiny: '', isCorrect: false },
-    { text_en: '', text_kiny: '', isCorrect: false }
+    { text: '', isCorrect: false },
+    { text: '', isCorrect: false },
+    { text: '', isCorrect: false },
+    { text: '', isCorrect: false }
   ],
-  imageUrl: '',
+  image: '',
   isPremium: false
 };
 
@@ -39,51 +35,27 @@ export default function AdminQuestions() {
   const [editingQuestion, setEditingQuestion] = useState<QuizQuestion | null>(null);
   const [creatingNew, setCreatingNew] = useState(false);
   const [newQuestion, setNewQuestion] = useState<Omit<QuizQuestion, 'id'>>(defaultQuestion);
+  const [quizzes, setQuizzes] = useState<QuizCard[]>([]);
+  const [creatingQuiz, setCreatingQuiz] = useState(false);
+  const [newQuiz, setNewQuiz] = useState<{ title: string; category: string; image?: string | null }>({ title: '', category: '', image: '' });
 
   useEffect(() => {
     loadQuestions();
+    (async () => {
+      try {
+        const res = await adminAPI.getQuizzes();
+        setQuizzes(res.quizzes);
+      } catch (e) {
+        console.error('Failed to load quizzes', e);
+      }
+    })();
   }, []);
 
   const loadQuestions = async () => {
     try {
       setLoading(true);
-      
-      // TODO: Replace with actual API call
-      // const data = await adminAPI.getQuestions();
-      
-      // Mock data
-      const mockQuestions: QuizQuestion[] = [
-        {
-          id: '1',
-          category_en: 'Traffic Signs',
-          category_kiny: 'Ibyapa',
-          question_en: 'What does a red octagonal sign mean?',
-          question_kiny: 'Icyapa cy\'umutuku gifite imperuke 8 bikora iki?',
-          options: [
-            { text_en: 'Stop', text_kiny: 'Hagarara', isCorrect: true },
-            { text_en: 'Yield', text_kiny: 'Hemba inzira', isCorrect: false },
-            { text_en: 'No entry', text_kiny: 'Nta winjira', isCorrect: false },
-            { text_en: 'Speed limit', text_kiny: 'Umuvuduko', isCorrect: false }
-          ],
-          isPremium: false
-        },
-        {
-          id: '2',
-          category_en: 'Speed Limits',
-          category_kiny: 'Umuvuduko',
-          question_en: 'What is the speed limit in urban areas?',
-          question_kiny: 'Umuvuduko ntarengwa mu mujyi ni uwuhe?',
-          options: [
-            { text_en: '40 km/h', text_kiny: '40 km/h', isCorrect: false },
-            { text_en: '50 km/h', text_kiny: '50 km/h', isCorrect: true },
-            { text_en: '60 km/h', text_kiny: '60 km/h', isCorrect: false },
-            { text_en: '70 km/h', text_kiny: '70 km/h', isCorrect: false }
-          ],
-          isPremium: false
-        }
-      ];
-      
-      setQuestions(mockQuestions);
+      const data = await adminAPI.getQuestions();
+      setQuestions(data.questions);
     } catch (error) {
       console.error('Failed to load questions:', error);
     } finally {
@@ -94,7 +66,7 @@ export default function AdminQuestions() {
   const handleCreateQuestion = async () => {
     try {
       // Validation
-      if (!newQuestion.category_en || !newQuestion.question_en) {
+      if (!newQuestion.quizId || !newQuestion.category || !newQuestion.question) {
         alert('Please fill in all required fields');
         return;
       }
@@ -106,13 +78,8 @@ export default function AdminQuestions() {
         return;
       }
 
-      // TODO: Replace with actual API call
-      // const created = await adminAPI.createQuestion(newQuestion);
-      
-      console.log('Creating question:', newQuestion);
-      
-      // Add to local state
-      const created = { ...newQuestion, id: Date.now().toString() };
+      const createdRes = await adminAPI.createQuestion(newQuestion);
+      const created = createdRes.question;
       setQuestions([created as QuizQuestion, ...questions]);
       
       // Reset form
@@ -127,13 +94,9 @@ export default function AdminQuestions() {
     if (!editingQuestion) return;
     
     try {
-      // TODO: Replace with actual API call
-      // await adminAPI.updateQuestion(editingQuestion.id, editingQuestion);
-      
-      console.log('Updating question:', editingQuestion);
-      
-      // Update local state
-      setQuestions(questions.map(q => q.id === editingQuestion.id ? editingQuestion : q));
+      const updatedRes = await adminAPI.updateQuestion(editingQuestion.id, editingQuestion);
+      const updated = updatedRes.question;
+      setQuestions(questions.map(q => q.id === updated.id ? updated as QuizQuestion : q));
       setEditingQuestion(null);
     } catch (error) {
       console.error('Failed to update question:', error);
@@ -144,10 +107,7 @@ export default function AdminQuestions() {
     if (!confirm('Are you sure you want to delete this question?')) return;
     
     try {
-      // TODO: Replace with actual API call
-      // await adminAPI.deleteQuestion(questionId);
-      
-      console.log('Deleting question:', questionId);
+      await adminAPI.deleteQuestion(questionId);
       setQuestions(questions.filter(q => q.id !== questionId));
     } catch (error) {
       console.error('Failed to delete question:', error);
@@ -179,21 +139,24 @@ export default function AdminQuestions() {
     <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 border border-gray-200 dark:border-gray-700 space-y-4">
       <div className="grid md:grid-cols-2 gap-4">
         <div>
-          <label className="block text-gray-700 dark:text-gray-300 mb-2">Category (English)</label>
-          <input
-            type="text"
-            value={question.category_en}
-            onChange={(e) => onChange({ ...question, category_en: e.target.value })}
-            placeholder="e.g., Traffic Signs"
+          <label className="block text-gray-700 dark:text-gray-300 mb-2">Quiz</label>
+          <select
+            value={question.quizId || ''}
+            onChange={(e) => onChange({ ...question, quizId: e.target.value })}
             className="w-full px-4 py-3 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#00A3AD] text-gray-900 dark:text-white"
-          />
+          >
+            <option value="">Select quiz…</option>
+            {quizzes.map(q => (
+              <option key={q.id} value={q.id}>{q.title}</option>
+            ))}
+          </select>
         </div>
         <div>
-          <label className="block text-gray-700 dark:text-gray-300 mb-2">Category (Kinyarwanda)</label>
+          <label className="block text-gray-700 dark:text-gray-300 mb-2">Category</label>
           <input
             type="text"
-            value={question.category_kiny}
-            onChange={(e) => onChange({ ...question, category_kiny: e.target.value })}
+            value={(question as any).category || ''}
+            onChange={(e) => onChange({ ...question, category: e.target.value })}
             placeholder="e.g., Ibyapa"
             className="w-full px-4 py-3 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#00A3AD] text-gray-900 dark:text-white"
           />
@@ -201,29 +164,18 @@ export default function AdminQuestions() {
       </div>
 
       <div>
-        <label className="block text-gray-700 dark:text-gray-300 mb-2">Question (English)</label>
+        <label className="block text-gray-700 dark:text-gray-300 mb-2">Ikibazo (Kinyarwanda)</label>
         <textarea
-          value={question.question_en}
-          onChange={(e) => onChange({ ...question, question_en: e.target.value })}
+          value={(question as any).question || ''}
+          onChange={(e) => onChange({ ...question, question: e.target.value })}
           rows={2}
-          placeholder="Enter question in English..."
+          placeholder="Andika ikibazo hano..."
           className="w-full px-4 py-3 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#00A3AD] text-gray-900 dark:text-white"
         />
       </div>
 
       <div>
-        <label className="block text-gray-700 dark:text-gray-300 mb-2">Question (Kinyarwanda)</label>
-        <textarea
-          value={question.question_kiny}
-          onChange={(e) => onChange({ ...question, question_kiny: e.target.value })}
-          rows={2}
-          placeholder="Enter question in Kinyarwanda..."
-          className="w-full px-4 py-3 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#00A3AD] text-gray-900 dark:text-white"
-        />
-      </div>
-
-      <div>
-        <label className="block text-gray-700 dark:text-gray-300 mb-4">Options</label>
+        <label className="block text-gray-700 dark:text-gray-300 mb-4">Ibisubizo</label>
         <div className="space-y-3">
           {question.options.map((option, index) => (
             <div key={index} className="flex items-center space-x-3">
@@ -240,24 +192,13 @@ export default function AdminQuestions() {
               />
               <input
                 type="text"
-                value={option.text_en}
+                value={option.text}
                 onChange={(e) => {
                   const newOptions = [...question.options];
-                  newOptions[index].text_en = e.target.value;
+                  newOptions[index].text = e.target.value;
                   onChange({ ...question, options: newOptions });
                 }}
-                placeholder={`Option ${index + 1} (English)`}
-                className="flex-1 px-4 py-2 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00A3AD] text-gray-900 dark:text-white"
-              />
-              <input
-                type="text"
-                value={option.text_kiny}
-                onChange={(e) => {
-                  const newOptions = [...question.options];
-                  newOptions[index].text_kiny = e.target.value;
-                  onChange({ ...question, options: newOptions });
-                }}
-                placeholder={`Option ${index + 1} (Kinyarwanda)`}
+                placeholder={`Ibisubizo ${index + 1}`}
                 className="flex-1 px-4 py-2 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00A3AD] text-gray-900 dark:text-white"
               />
             </div>
@@ -269,24 +210,13 @@ export default function AdminQuestions() {
         <label className="block text-gray-700 dark:text-gray-300 mb-2">Image URL (Optional)</label>
         <input
           type="text"
-          value={question.imageUrl || ''}
-          onChange={(e) => onChange({ ...question, imageUrl: e.target.value })}
+          value={(question as any).image || ''}
+          onChange={(e) => onChange({ ...question, image: e.target.value })}
           placeholder="https://..."
           className="w-full px-4 py-3 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#00A3AD] text-gray-900 dark:text-white"
         />
       </div>
 
-      <div>
-        <label className="flex items-center space-x-3">
-          <input
-            type="checkbox"
-            checked={question.isPremium}
-            onChange={(e) => onChange({ ...question, isPremium: e.target.checked })}
-            className="w-5 h-5 text-[#00A3AD] border-gray-300 rounded focus:ring-[#00A3AD]"
-          />
-          <span className="text-gray-700 dark:text-gray-300">Premium Question (Pro only)</span>
-        </label>
-      </div>
 
       <div className="flex space-x-4">
         <button
@@ -326,6 +256,85 @@ export default function AdminQuestions() {
             <span>Add Question</span>
           </button>
         </div>
+
+        {/* Quizzes Manager */}
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 border border-gray-200 dark:border-gray-700">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="text-gray-900 dark:text-white">Manage Quizzes</h3>
+                <p className="text-gray-600 dark:text-gray-400">Create new quiz sets that questions can belong to</p>
+              </div>
+              <button
+                onClick={() => setCreatingQuiz(!creatingQuiz)}
+                className="px-4 py-2 bg-gradient-to-r from-[#00A3AD] to-[#008891] text-white rounded-lg"
+              >
+                {creatingQuiz ? 'Close' : 'Add Quiz'}
+              </button>
+            </div>
+
+            {creatingQuiz && (
+              <div className="grid md:grid-cols-3 gap-4 mb-4">
+                <input
+                  type="text"
+                  placeholder="Title"
+                  value={newQuiz.title}
+                  onChange={(e) => setNewQuiz({ ...newQuiz, title: e.target.value })}
+                  className="px-4 py-3 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl"
+                />
+                <input
+                  type="text"
+                  placeholder="Category"
+                  value={newQuiz.category}
+                  onChange={(e) => setNewQuiz({ ...newQuiz, category: e.target.value })}
+                  className="px-4 py-3 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl"
+                />
+                <input
+                  type="text"
+                  placeholder="Image URL (optional)"
+                  value={newQuiz.image || ''}
+                  onChange={(e) => setNewQuiz({ ...newQuiz, image: e.target.value })}
+                  className="px-4 py-3 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl"
+                />
+                <div className="md:col-span-3 flex justify-end">
+                  <button
+                    onClick={async () => {
+                      if (!newQuiz.title || !newQuiz.category) {
+                        alert('Please provide title and category');
+                        return;
+                      }
+                      try {
+                        const res = await adminAPI.createQuiz(newQuiz);
+                        setQuizzes([res.quiz, ...quizzes]);
+                        setNewQuiz({ title: '', category: '', image: '' });
+                        setCreatingQuiz(false);
+                      } catch (e) {
+                        console.error('Failed to create quiz', e);
+                      }
+                    }}
+                    className="px-6 py-3 bg-gradient-to-r from-[#00A3AD] to-[#008891] text-white rounded-xl"
+                  >
+                    Save Quiz
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {quizzes.map(q => (
+                <div key={q.id} className="border rounded-xl p-4 bg-white dark:bg-gray-700">
+                  <div className="flex items-center space-x-3 mb-2">
+                    <img src={q.image || '/src/favicon_io/android-chrome-192x192.png'} alt="Quiz" className="w-8 h-8 rounded" />
+                    <div>
+                      <p className="text-gray-900 dark:text-white">{q.title}</p>
+                      <p className="text-xs text-gray-500">{q.category} • {q.questionCount} questions</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </motion.div>
 
         {/* Create New Question */}
         {creatingNew && (
@@ -369,7 +378,7 @@ export default function AdminQuestions() {
                     <div className="flex-1">
                       <div className="flex items-center space-x-2 mb-2">
                         <span className="px-3 py-1 bg-[#00A3AD]/10 dark:bg-[#00A3AD]/20 text-[#00A3AD] rounded-full text-sm">
-                          {question.category_en}
+                          {question.category}
                         </span>
                         {question.isPremium && (
                           <span className="px-3 py-1 bg-gradient-to-r from-yellow-400 to-orange-500 text-white rounded-full text-sm">
@@ -378,9 +387,8 @@ export default function AdminQuestions() {
                         )}
                       </div>
                       <h3 className="text-gray-900 dark:text-white mb-1">
-                        {question.question_en}
+                        {question.question}
                       </h3>
-                      <p className="text-[#00A3AD] text-sm">{question.question_kiny}</p>
                     </div>
                     <div className="flex space-x-2">
                       <button
@@ -412,8 +420,7 @@ export default function AdminQuestions() {
                           <span className="text-green-500">✓</span>
                         )}
                         <div className="flex-1">
-                          <p className="text-gray-900 dark:text-white">{option.text_en}</p>
-                          <p className="text-sm text-gray-600 dark:text-gray-400">{option.text_kiny}</p>
+                          <p className="text-gray-900 dark:text-white">{option.text}</p>
                         </div>
                       </div>
                     ))}

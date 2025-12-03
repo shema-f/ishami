@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { authAPI } from '../services/api';
 
 interface User {
   id: string;
@@ -14,7 +15,10 @@ interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
   login: (email: string, password: string) => Promise<void>;
-  signup: (username: string, email: string, password: string) => Promise<void>;
+  signup: (username: string, email: string, password: string, phone?: string) => Promise<void>;
+  socialLogin: (provider: 'google' | 'facebook') => Promise<void>;
+  googleIdTokenLogin: (idToken: string) => Promise<void>;
+  loginPhone: (phone: string, password: string) => Promise<void>;
   logout: () => void;
   updateUser: (updates: Partial<User>) => void;
 }
@@ -25,50 +29,56 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
 
   useEffect(() => {
-    // Check for stored auth token and restore user session
     const token = localStorage.getItem('authToken');
-    if (token) {
-      // In production, validate token with backend
-      const storedUser = localStorage.getItem('user');
-      if (storedUser) {
-        setUser(JSON.parse(storedUser));
+    if (!token) return;
+    (async () => {
+      try {
+        const res = await authAPI.verifyToken();
+        if (res?.user) {
+          setUser(res.user);
+          localStorage.setItem('user', JSON.stringify(res.user));
+        }
+      } catch {
+        localStorage.removeItem('authToken');
+        localStorage.removeItem('user');
+        setUser(null);
       }
-    }
+    })();
   }, []);
 
   const login = async (email: string, password: string) => {
-    // TODO: Replace with actual API call to /api/auth/signin
-    // Mock login for demo
-    const mockUser: User = {
-      id: '1',
-      username: 'DemoUser',
-      email: email,
-      isPro: false,
-      role: 'user',
-      loginStreak: 5,
-      badges: ['SignMaster']
-    };
-    
-    localStorage.setItem('authToken', 'mock-jwt-token');
-    localStorage.setItem('user', JSON.stringify(mockUser));
-    setUser(mockUser);
+    const res = await authAPI.signin(email, password);
+    localStorage.setItem('authToken', res.token);
+    localStorage.setItem('user', JSON.stringify(res.user));
+    setUser(res.user);
   };
 
-  const signup = async (username: string, email: string, password: string) => {
-    // TODO: Replace with actual API call to /api/auth/signup
-    const mockUser: User = {
-      id: '1',
-      username: username,
-      email: email,
-      isPro: false,
-      role: 'user',
-      loginStreak: 0,
-      badges: []
-    };
-    
-    localStorage.setItem('authToken', 'mock-jwt-token');
-    localStorage.setItem('user', JSON.stringify(mockUser));
-    setUser(mockUser);
+  const signup = async (username: string, email: string, password: string, phone?: string) => {
+    const res = await authAPI.signup(username, email, password, phone);
+    localStorage.setItem('authToken', res.token);
+    localStorage.setItem('user', JSON.stringify(res.user));
+    setUser(res.user);
+  };
+
+  const socialLogin = async (provider: 'google' | 'facebook') => {
+    const res = await authAPI.socialSignin(provider);
+    localStorage.setItem('authToken', res.token);
+    localStorage.setItem('user', JSON.stringify(res.user));
+    setUser(res.user);
+  };
+
+  const googleIdTokenLogin = async (idToken: string) => {
+    const res = await authAPI.googleVerifyIdToken(idToken);
+    localStorage.setItem('authToken', res.token);
+    localStorage.setItem('user', JSON.stringify(res.user));
+    setUser(res.user);
+  };
+
+  const loginPhone = async (phone: string, password: string) => {
+    const res = await authAPI.signinPhone(phone, password);
+    localStorage.setItem('authToken', res.token);
+    localStorage.setItem('user', JSON.stringify(res.user));
+    setUser(res.user);
   };
 
   const logout = () => {
@@ -86,7 +96,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ user, isAuthenticated: !!user, login, signup, logout, updateUser }}>
+    <AuthContext.Provider value={{ user, isAuthenticated: !!user, login, signup, socialLogin, googleIdTokenLogin, loginPhone, logout, updateUser }}>
       {children}
     </AuthContext.Provider>
   );

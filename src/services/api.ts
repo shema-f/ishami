@@ -5,7 +5,7 @@
  * For production: 'https://api.ishami.rw' or your domain
  */
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+const API_BASE_URL = (import.meta as any).env?.VITE_API_URL || 'http://localhost:5000';
 
 // Helper function for API calls
 async function apiCall(endpoint: string, options: RequestInit = {}) {
@@ -39,11 +39,11 @@ export const authAPI = {
    * Sign up new user
    * Backend endpoint: POST /api/auth/signup
    */
-  signup: async (username: string, email: string, password: string) => {
+  signup: async (username: string, email: string, password: string, phone?: string) => {
     // TODO: Replace with actual API call
     return apiCall('/api/auth/signup', {
       method: 'POST',
-      body: JSON.stringify({ username, email, password }),
+      body: JSON.stringify({ username, email, password, phone }),
     });
   },
 
@@ -58,6 +58,12 @@ export const authAPI = {
       body: JSON.stringify({ email, password }),
     });
   },
+  signinPhone: async (phone: string, password: string) => {
+    return apiCall('/api/auth/signin', {
+      method: 'POST',
+      body: JSON.stringify({ phone, password }),
+    });
+  },
 
   /**
    * Verify JWT token
@@ -65,6 +71,30 @@ export const authAPI = {
    */
   verifyToken: async () => {
     return apiCall('/api/auth/verify');
+  },
+  socialSignin: async (provider: 'google' | 'facebook') => {
+    return apiCall('/api/auth/social', {
+      method: 'POST',
+      body: JSON.stringify({ provider }),
+    });
+  },
+  googleVerifyIdToken: async (idToken: string) => {
+    return apiCall('/api/auth/google/verify-id-token', {
+      method: 'POST',
+      body: JSON.stringify({ idToken }),
+    });
+  },
+  forgotPassword: async (identifier: string) => {
+    return apiCall('/api/auth/forgot', {
+      method: 'POST',
+      body: JSON.stringify({ identifier }),
+    });
+  },
+  resetPassword: async (token: string, password: string) => {
+    return apiCall('/api/auth/reset', {
+      method: 'POST',
+      body: JSON.stringify({ token, password }),
+    });
   },
 };
 
@@ -82,6 +112,22 @@ export const quizAPI = {
   },
 
   /**
+   * List quizzes for cards
+   * Backend endpoint: GET /api/quizzes
+   */
+  listQuizzes: async () => {
+    return apiCall('/api/quizzes');
+  },
+
+  /**
+   * Get quiz by ID (Kinyarwanda-only)
+   * Backend endpoint: GET /api/quiz/:quizId
+   */
+  getQuiz: async (quizId: string) => {
+    return apiCall(`/api/quiz/${quizId}`);
+  },
+
+  /**
    * Submit quiz answers
    * Backend endpoint: POST /api/quiz/submit
    */
@@ -95,6 +141,15 @@ export const quizAPI = {
     return apiCall('/api/quiz/submit', {
       method: 'POST',
       body: JSON.stringify(data),
+    });
+  },
+};
+
+export const newsletterAPI = {
+  subscribe: async (email: string) => {
+    return apiCall('/api/newsletter/subscribe', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
     });
   },
 };
@@ -277,6 +332,46 @@ export const adminAPI = {
   },
 
   /**
+   * Get all quizzes
+   * Backend endpoint: GET /api/admin/quizzes?page=1&limit=50
+   */
+  getQuizzes: async (page: number = 1, limit: number = 50) => {
+    return apiCall(`/api/admin/quizzes?page=${page}&limit=${limit}`);
+  },
+
+  /**
+   * Create quiz
+   * Backend endpoint: POST /api/admin/quizzes
+   */
+  createQuiz: async (quiz: { title: string; category: string; image?: string | null }) => {
+    return apiCall('/api/admin/quizzes', {
+      method: 'POST',
+      body: JSON.stringify(quiz),
+    });
+  },
+
+  /**
+   * Update quiz
+   * Backend endpoint: PUT /api/admin/quizzes/:quizId
+   */
+  updateQuiz: async (quizId: string, updates: { title?: string; category?: string; image?: string | null }) => {
+    return apiCall(`/api/admin/quizzes/${quizId}`, {
+      method: 'PUT',
+      body: JSON.stringify(updates),
+    });
+  },
+
+  /**
+   * Delete quiz
+   * Backend endpoint: DELETE /api/admin/quizzes/:quizId
+   */
+  deleteQuiz: async (quizId: string) => {
+    return apiCall(`/api/admin/quizzes/${quizId}`, {
+      method: 'DELETE',
+    });
+  },
+
+  /**
    * Get all quiz questions
    * Backend endpoint: GET /api/admin/questions?page=1&limit=50
    */
@@ -400,6 +495,19 @@ export const adminAPI = {
   getUserLogs: async (userId: string) => {
     return apiCall(`/api/admin/user-logs/${userId}`);
   },
+
+  getNewsletterSubscribers: async (page: number = 1, limit: number = 50) => {
+    return apiCall(`/api/admin/newsletter/subscribers?page=${page}&limit=${limit}`);
+  },
+  getNewsletterCampaigns: async (page: number = 1, limit: number = 50) => {
+    return apiCall(`/api/admin/newsletter/campaigns?page=${page}&limit=${limit}`);
+  },
+  sendNewsletter: async (subject: string, body: string) => {
+    return apiCall('/api/admin/newsletter/send', {
+      method: 'POST',
+      body: JSON.stringify({ subject, body }),
+    });
+  },
 };
 
 export default {
@@ -412,4 +520,5 @@ export default {
   irembo: iremboAPI,
   simulation: simulationAPI,
   admin: adminAPI,
+  newsletter: newsletterAPI,
 };

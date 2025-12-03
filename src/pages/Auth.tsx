@@ -1,20 +1,112 @@
 import { useState } from 'react';
 import { motion } from 'motion/react';
-import { Mail, Lock, User, Eye, EyeOff, Zap } from 'lucide-react';
+import { Mail, Lock, User, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { authAPI } from '../services/api';
 import { useNavigate } from 'react-router';
 
 export default function Auth() {
   const [isSignIn, setIsSignIn] = useState(true);
   const [email, setEmail] = useState('');
+  const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [username, setUsername] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [showForgot, setShowForgot] = useState(false);
+  const [forgotIdentifier, setForgotIdentifier] = useState('');
+  const [resetToken, setResetToken] = useState('');
+  const [newPassword2, setNewPassword2] = useState('');
+  const [forgotStatus, setForgotStatus] = useState('');
   
-  const { login, signup } = useAuth();
+  const { login, signup, updateUser, socialLogin, googleIdTokenLogin } = useAuth();
   const navigate = useNavigate();
+  const API_BASE = (import.meta as any).env?.VITE_API_URL || 'http://localhost:5000';
+  const GOOGLE_CLIENT_ID = (import.meta as any).env?.VITE_GOOGLE_CLIENT_ID || '921766633773-ggb4nlq294cvaetc8gpa5cadh6sokecu.apps.googleusercontent.com';
+
+  const handleSocial = (provider: 'google' | 'facebook') => {
+    setError('');
+    setLoading(true);
+    const startUrl = `${API_BASE}/api/auth/${provider}/start`;
+    const popup = window.open(startUrl, 'oauth', 'width=520,height=640');
+    const onMessage = (e: MessageEvent) => {
+      if (typeof e.origin === 'string') {
+        const expectedOrigin = new URL(API_BASE).origin;
+        if (e.origin !== expectedOrigin) return;
+      }
+      try {
+        const data: any = e.data;
+        if (data && data.type === 'oauth_success' && data.token && data.user) {
+          localStorage.setItem('authToken', data.token);
+          localStorage.setItem('user', JSON.stringify(data.user));
+          updateUser(data.user);
+          window.removeEventListener('message', onMessage);
+          clearTimeout(fallbackTimer);
+          popup && popup.close();
+          navigate('/');
+        }
+      } catch {}
+      setLoading(false);
+    };
+    window.addEventListener('message', onMessage);
+
+    const fallbackTimer = setTimeout(async () => {
+      try {
+        await socialLogin(provider);
+        navigate('/');
+      } catch (e: any) {
+        setError(e?.message || `${provider} sign-in failed`);
+      } finally {
+        setLoading(false);
+        window.removeEventListener('message', onMessage);
+        popup && popup.close();
+      }
+    }, 8000);
+  };
+
+  const handleGoogleGisSignIn = async () => {
+    try {
+      setError('');
+      setLoading(true);
+      if (!(window as any).google) {
+        await new Promise<void>((resolve, reject) => {
+          const s = document.createElement('script');
+          s.src = 'https://accounts.google.com/gsi/client';
+          s.async = true;
+          s.onload = () => resolve();
+          s.onerror = () => reject(new Error('Failed to load Google script'));
+          document.head.appendChild(s);
+        });
+      }
+      const google = (window as any).google;
+      let handled = false;
+      google.accounts.id.initialize({
+        client_id: GOOGLE_CLIENT_ID,
+        callback: async (response: any) => {
+          try {
+            if (response?.credential && !handled) {
+              handled = true;
+              await googleIdTokenLogin(response.credential);
+              navigate('/');
+            }
+          } catch (e: any) {
+            setError(e?.message || 'Google sign-in failed');
+          } finally {
+            setLoading(false);
+          }
+        },
+      });
+      const container = document.createElement('div');
+      container.style.display = 'none';
+      document.body.appendChild(container);
+      google.accounts.id.renderButton(container, { theme: 'outline', size: 'large' });
+      container.querySelector('div')?.dispatchEvent(new Event('click'));
+    } catch (e: any) {
+      setError(e?.message || 'Google sign-in failed');
+      setLoading(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -23,14 +115,25 @@ export default function Auth() {
 
     try {
       if (isSignIn) {
-        await login(email, password);
+        if (!identifier) {
+          setError('Email or phone is required');
+          setLoading(false);
+          return;
+        }
+        await login(identifier, password);
       } else {
         if (!username) {
           setError('Username is required');
           setLoading(false);
           return;
         }
-        await signup(username, email, password);
+        if (!identifier) {
+          setError('Email or phone is required');
+          setLoading(false);
+          return;
+        }
+        const isEmail = identifier.includes('@');
+        await signup(username, isEmail ? identifier : '', password, isEmail ? undefined : identifier);
       }
       navigate('/');
     } catch (err: any) {
@@ -58,19 +161,13 @@ export default function Auth() {
             />
             
             <div className="relative z-10 text-center p-12">
-              <motion.div
-                animate={{
-                  scale: [1, 1.05, 1],
-                }}
-                transition={{
-                  duration: 2,
-                  repeat: Infinity,
-                  ease: "easeInOut"
-                }}
-                className="inline-flex p-8 bg-gradient-to-br from-[#00A3AD] to-[#008891] rounded-3xl mb-8 shadow-2xl"
-              >
-                <Zap className="w-24 h-24 text-white" />
-              </motion.div>
+              <motion.img
+                src="/src/favicon_io/android-chrome-192x192.png"
+                alt="ISHAMI"
+                animate={{ scale: [1, 1.05, 1] }}
+                transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                className="inline-flex w-24 h-24 rounded-3xl mb-8 shadow-2xl"
+              />
               
               <h1 className="text-gray-900 dark:text-white mb-4">
                 Welcome to ISHAMI
@@ -156,6 +253,8 @@ export default function Auth() {
             </button>
           </div>
 
+          
+
           <h2 className="text-gray-900 dark:text-white mb-2">
             {isSignIn ? 'Welcome Back!' : 'Create Account'}
           </h2>
@@ -197,15 +296,15 @@ export default function Auth() {
 
             <div>
               <label className="block text-gray-700 dark:text-gray-300 mb-2">
-                Email
+                Email or Phone
               </label>
               <div className="relative">
                 <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                 <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="Enter your email"
+                  type="text"
+                  value={identifier}
+                  onChange={(e) => setIdentifier(e.target.value)}
+                  placeholder="Enter email or phone (e.g., name@example.com or +2507xxxxxxx)"
                   required
                   className="w-full pl-12 pr-4 py-4 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#00A3AD] text-gray-900 dark:text-white"
                 />
@@ -245,9 +344,9 @@ export default function Auth() {
                   />
                   <span className="text-gray-600 dark:text-gray-400 text-sm">Remember me</span>
                 </label>
-                <a href="#" className="text-[#00A3AD] text-sm hover:underline">
+                <button type="button" onClick={() => setShowForgot(true)} className="text-[#00A3AD] text-sm hover:underline">
                   Forgot password?
-                </a>
+                </button>
               </div>
             )}
 
@@ -259,6 +358,73 @@ export default function Auth() {
               {loading ? 'Please wait...' : isSignIn ? 'Sign In' : 'Create Account'}
             </button>
           </form>
+
+          {showForgot && (
+            <div className="mt-6 space-y-4">
+              <div>
+                <label className="block text-gray-700 dark:text-gray-300 mb-2">Email or Phone</label>
+                <input
+                  type="text"
+                  value={forgotIdentifier}
+                  onChange={(e) => setForgotIdentifier(e.target.value)}
+                  placeholder="Enter email or phone"
+                  className="w-full px-4 py-3 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#00A3AD] text-gray-900 dark:text-white"
+                />
+              </div>
+              <button
+                onClick={async () => {
+                  try {
+                    setForgotStatus('');
+                    const res = await authAPI.forgotPassword(forgotIdentifier);
+                    setForgotStatus(res.sent ? 'Reset link sent' : 'Request received');
+                  } catch (e: any) {
+                    setForgotStatus(e?.message || 'Request failed');
+                  }
+                }}
+                className="w-full py-3 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white rounded-xl hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+              >
+                Send Reset Link
+              </button>
+              <div>
+                <label className="block text-gray-700 dark:text-gray-300 mb-2">Reset Token</label>
+                <input
+                  type="text"
+                  value={resetToken}
+                  onChange={(e) => setResetToken(e.target.value)}
+                  placeholder="Paste token"
+                  className="w-full px-4 py-3 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#00A3AD] text-gray-900 dark:text-white"
+                />
+              </div>
+              <div>
+                <label className="block text-gray-700 dark:text-gray-300 mb-2">New Password</label>
+                <input
+                  type="password"
+                  value={newPassword2}
+                  onChange={(e) => setNewPassword2(e.target.value)}
+                  placeholder="Enter new password"
+                  className="w-full px-4 py-3 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#00A3AD] text-gray-900 dark:text-white"
+                />
+              </div>
+              <button
+                onClick={async () => {
+                  try {
+                    setForgotStatus('');
+                    await authAPI.resetPassword(resetToken, newPassword2);
+                    setForgotStatus('Password updated');
+                    setShowForgot(false);
+                  } catch (e: any) {
+                    setForgotStatus(e?.message || 'Reset failed');
+                  }
+                }}
+                className="w-full py-3 bg-gradient-to-r from-[#00A3AD] to-[#008891] text-white rounded-xl hover:shadow-xl transition-all duration-300"
+              >
+                Reset Password
+              </button>
+              {forgotStatus && (
+                <div className="text-center text-sm text-gray-600 dark:text-gray-400">{forgotStatus}</div>
+              )}
+            </div>
+          )}
 
           {/* Social Login Placeholders */}
           <div className="mt-8">
@@ -274,12 +440,25 @@ export default function Auth() {
             </div>
 
             <div className="grid grid-cols-2 gap-4">
-              <button className="flex items-center justify-center space-x-2 py-3 border border-gray-200 dark:border-gray-700 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
-                <span>🔵</span>
+              <button
+                onClick={() => handleGoogleGisSignIn()}
+                className="flex items-center justify-center space-x-2 py-3 border border-gray-200 dark:border-gray-700 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" className="w-5 h-5">
+                  <path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.6 32.4 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3 0 5.7 1.1 7.8 3l5.7-5.7C34.6 6.1 29.6 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20c10.7 0 19.6-8.3 20-19v-4.5z"/>
+                  <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.3 16.3 18.8 14 24 14c3 0 5.7 1.1 7.8 3l5.7-5.7C34.6 6.1 29.6 4 24 4 16.6 4 10.3 8.2 6.3 14.7z"/>
+                  <path fill="#4CAF50" d="M24 44c5.2 0 10-2 13.6-5.3l-6.2-5.1c-2 1.7-4.7 2.7-7.4 2.7-5.1 0-9.4-3.3-11-7.9l-6.6 5.1C9.9 39.8 16.5 44 24 44z"/>
+                  <path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-1.1 3.1-3.5 5.7-6.5 7.2l6.2 5.1C37.8 37.7 44 32.9 44 24c0-1.2-.1-2.3-.4-3.5z"/>
+                </svg>
                 <span className="text-gray-700 dark:text-gray-300">Google</span>
               </button>
-              <button className="flex items-center justify-center space-x-2 py-3 border border-gray-200 dark:border-gray-700 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
-                <span>📘</span>
+              <button
+                onClick={() => handleSocial('facebook')}
+                className="flex items-center justify-center space-x-2 py-3 border border-gray-200 dark:border-gray-700 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="w-5 h-5" fill="#1877F2">
+                  <path d="M24 12.073C24 5.405 18.627 0 12 0S0 5.405 0 12.073C0 18.1 4.388 23.093 10.125 24v-8.437H7.078V12.07h3.047V9.41c0-3.008 1.792-4.668 4.533-4.668 1.313 0 2.686.235 2.686.235v2.953h-1.513c-1.49 0-1.953.93-1.953 1.887v2.253h3.328l-.532 3.493h-2.796V24C19.612 23.093 24 18.1 24 12.073z"/>
+                </svg>
                 <span className="text-gray-700 dark:text-gray-300">Facebook</span>
               </button>
             </div>

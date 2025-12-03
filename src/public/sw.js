@@ -85,8 +85,8 @@ async function syncQuizResults() {
 self.addEventListener('push', (event) => {
   const options = {
     body: event.data ? event.data.text() : 'New update from ISHAMI!',
-    icon: '/icon-192.png',
-    badge: '/icon-192.png',
+    icon: '/src/favicon_io/android-chrome-192x192.png',
+    badge: '/src/favicon_io/android-chrome-192x192.png',
     vibrate: [200, 100, 200],
     data: {
       dateOfArrival: Date.now(),
@@ -96,14 +96,13 @@ self.addEventListener('push', (event) => {
       {
         action: 'explore',
         title: 'Open App',
-        icon: '/icon-192.png'
+        icon: '/src/favicon_io/android-chrome-192x192.png'
       },
       {
         action: 'close',
         title: 'Close',
-        icon: '/icon-192.png'
+        icon: '/src/favicon_io/android-chrome-192x192.png'
       }
-    ]
   };
   
   event.waitUntil(

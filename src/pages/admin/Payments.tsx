@@ -6,13 +6,13 @@ import { adminAPI } from '../../services/api';
 interface Payment {
   id: string;
   userId: string;
-  username: string;
-  email: string;
-  transactionId: string;
   amount: number;
   status: 'PENDING' | 'SUCCESS' | 'FAILED';
-  source: 'MTN' | 'Airtel';
-  paidAt: string;
+  provider: 'MTN' | 'airtel' | string;
+  createdAt?: string;
+  transactionId?: string;
+  username?: string;
+  email?: string;
 }
 
 export default function AdminPayments() {
@@ -28,29 +28,17 @@ export default function AdminPayments() {
   const loadPayments = async () => {
     try {
       setLoading(true);
-      
-      // TODO: Replace with actual API call
-      // const data = await adminAPI.getPayments();
-      
-      // Mock data
-      const mockPayments: Payment[] = Array.from({ length: 30 }, (_, i) => {
-        const statuses: Array<'PENDING' | 'SUCCESS' | 'FAILED'> = ['SUCCESS', 'SUCCESS', 'SUCCESS', 'PENDING', 'FAILED'];
-        const sources: Array<'MTN' | 'Airtel'> = ['MTN', 'Airtel'];
-        
-        return {
-          id: `payment-${i + 1}`,
-          userId: `user-${i + 1}`,
-          username: `User ${i + 1}`,
-          email: `user${i + 1}@example.com`,
-          transactionId: `TXN-${Date.now()}-${i}`,
-          amount: 1000,
-          status: statuses[Math.floor(Math.random() * statuses.length)],
-          source: sources[Math.floor(Math.random() * sources.length)],
-          paidAt: new Date(Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000).toISOString()
-        };
-      });
-      
-      setPayments(mockPayments);
+      const data = await adminAPI.getPayments(1, 50);
+      const items: Payment[] = (data.payments || []).map((p: any) => ({
+        id: p.id,
+        userId: p.userId,
+        amount: Number(p.amount || 0),
+        status: p.status,
+        provider: String(p.provider || '').toLowerCase(),
+        createdAt: p.createdAt,
+        transactionId: p.id,
+      }));
+      setPayments(items);
     } catch (error) {
       console.error('Failed to load payments:', error);
     } finally {
@@ -245,8 +233,7 @@ export default function AdminPayments() {
                     </td>
                     <td className="py-4 px-6">
                       <div>
-                        <p className="text-gray-900 dark:text-white">{payment.username}</p>
-                        <p className="text-sm text-gray-600 dark:text-gray-400">{payment.email}</p>
+                        <p className="text-gray-900 dark:text-white">User: <code className="font-mono text-sm">{payment.userId}</code></p>
                       </div>
                     </td>
                     <td className="py-4 px-6">
@@ -254,11 +241,11 @@ export default function AdminPayments() {
                     </td>
                     <td className="py-4 px-6">
                       <span className={`px-3 py-1 rounded-full text-sm ${
-                        payment.source === 'MTN'
+                        payment.provider === 'mtn'
                           ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400'
                           : 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400'
                       }`}>
-                        {payment.source}
+                        {payment.provider?.toUpperCase()}
                       </span>
                     </td>
                     <td className="py-4 px-6">
@@ -266,7 +253,7 @@ export default function AdminPayments() {
                     </td>
                     <td className="py-4 px-6">
                       <span className="text-gray-600 dark:text-gray-400 text-sm">
-                        {new Date(payment.paidAt).toLocaleString()}
+                        {payment.createdAt ? new Date(payment.createdAt).toLocaleString() : '—'}
                       </span>
                     </td>
                   </tr>

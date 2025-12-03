@@ -3,12 +3,14 @@ import { motion } from 'motion/react';
 import { Send, Sparkles, MessageCircle } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { ImageWithFallback } from '../components/figma/ImageWithFallback';
+import { aiAPI } from '../services/api';
 
 interface Message {
   id: number;
   text: string;
   isUser: boolean;
   timestamp: Date;
+  image?: string | null;
 }
 
 const suggestedPrompts = [
@@ -46,16 +48,17 @@ export default function AIAssistant() {
     scrollToBottom();
   }, [messages]);
 
-  const simulateTyping = async (response: string) => {
+  const simulateTyping = async (response: { text: string; image?: string | null }) => {
     setIsTyping(true);
     await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 1000));
     setIsTyping(false);
     
     const newMessage: Message = {
       id: messages.length + 1,
-      text: response,
+      text: response.text,
       isUser: false,
-      timestamp: new Date()
+      timestamp: new Date(),
+      image: response.image || null
     };
     setMessages(prev => [...prev, newMessage]);
   };
@@ -111,8 +114,12 @@ export default function AIAssistant() {
     setInput('');
     setQuestionCount(prev => prev + 1);
 
-    const response = getMockResponse(input);
-    await simulateTyping(response);
+    try {
+      const res = await aiAPI.askQuestion(user ? user.id : 'anonymous', input, questionCount + 1);
+      await simulateTyping({ text: res.text, image: res.image || null });
+    } catch (e) {
+      await simulateTyping({ text: "Ndakumbuye igisubizo. Ongera ugerageze nyuma." });
+    }
   };
 
   const handlePromptClick = (prompt: string) => {
@@ -197,6 +204,11 @@ export default function AIAssistant() {
                     }`}
                   >
                     <p className="leading-relaxed">{message.text}</p>
+                    {message.image && (
+                      <div className="mt-3">
+                        <img src={message.image} alt="Source" className="w-full max-h-64 object-contain rounded-xl border border-gray-200 dark:border-gray-600" />
+                      </div>
+                    )}
                     <p className={`text-xs mt-2 ${message.isUser ? 'text-white/70' : 'text-gray-500 dark:text-gray-400'}`}>
                       {message.timestamp.toLocaleTimeString()}
                     </p>
@@ -275,11 +287,11 @@ export default function AIAssistant() {
               <h2 className="text-gray-900 dark:text-white mb-4">Upgrade to Pro</h2>
               <p className="text-gray-600 dark:text-gray-400 mb-6">
                 You've used your 5 free questions! Unlock unlimited AI assistance, full quiz access, 
-                and premium features for only <span className="text-[#00A3AD]">1,000 RWF</span>.
+                and premium features for only <span className="text-[#00A3AD]">100 RWF</span>.
               </p>
               <div className="space-y-3">
                 <button className="w-full px-6 py-4 bg-gradient-to-r from-[#00A3AD] to-[#008891] text-white rounded-xl hover:shadow-xl transition-all duration-300">
-                  Upgrade Now - 1,000 RWF
+                  Upgrade Now - 100 RWF
                 </button>
                 <button
                   onClick={() => setShowPaywall(false)}

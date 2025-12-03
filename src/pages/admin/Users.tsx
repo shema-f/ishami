@@ -11,7 +11,7 @@ interface User {
   role: string;
   loginStreak: number;
   badges: string[];
-  createdAt: string;
+  createdAt?: string;
 }
 
 export default function AdminUsers() {
@@ -28,23 +28,18 @@ export default function AdminUsers() {
   const loadUsers = async () => {
     try {
       setLoading(true);
-      
-      // TODO: Replace with actual API call
-      // const data = await adminAPI.getUsers();
-      
-      // Mock data
-      const mockUsers: User[] = Array.from({ length: 20 }, (_, i) => ({
-        id: `user-${i + 1}`,
-        username: `User${i + 1}`,
-        email: `user${i + 1}@example.com`,
-        isPro: Math.random() > 0.7,
-        role: i === 0 ? 'admin' : 'user',
-        loginStreak: Math.floor(Math.random() * 30),
-        badges: ['SignMaster'],
-        createdAt: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000).toISOString()
+      const data = await adminAPI.getUsers(1, 50);
+      const items: User[] = (data.users || []).map((u: any) => ({
+        id: u.id,
+        username: u.username,
+        email: u.email,
+        isPro: !!u.isPro,
+        role: u.role || 'user',
+        loginStreak: Number(u.loginStreak || 0),
+        badges: Array.isArray(u.badges) ? u.badges : [],
+        createdAt: u.createdAt,
       }));
-      
-      setUsers(mockUsers);
+      setUsers(items);
     } catch (error) {
       console.error('Failed to load users:', error);
     } finally {
@@ -190,7 +185,7 @@ export default function AdminUsers() {
                     </td>
                     <td className="py-4 px-6">
                       <span className="text-gray-600 dark:text-gray-400 text-sm">
-                        {new Date(user.createdAt).toLocaleDateString()}
+                        {user.createdAt ? new Date(user.createdAt).toLocaleDateString() : '—'}
                       </span>
                     </td>
                     <td className="py-4 px-6">

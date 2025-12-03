@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { FileCheck, Edit, Eye, MessageSquare } from 'lucide-react';
+import { Eye } from 'lucide-react';
+import iremboLogo from '../../assets/irembo.png';
 import { adminAPI } from '../../services/api';
 
 interface IremboApplication {
   id: string;
   userId: string;
-  username: string;
   fullName: string;
   nationalId: string;
   phone: string;
@@ -15,10 +15,9 @@ interface IremboApplication {
   testMode: string;
   district: string;
   testDate: string;
-  billingId: string;
   status: 'PENDING' | 'PROCESSING' | 'SUBMITTED_TO_IREMBO' | 'COMPLETED' | 'BLOCKED';
-  adminNotes: string;
-  submittedAt: string;
+  adminNotes?: string;
+  createdAt?: string;
 }
 
 export default function AdminIremboApplications() {
@@ -34,35 +33,23 @@ export default function AdminIremboApplications() {
   const loadApplications = async () => {
     try {
       setLoading(true);
-      
-      // TODO: Replace with actual API call
-      // const data = await adminAPI.getIremboApplications();
-      
-      // Mock data
-      const mockApplications: IremboApplication[] = Array.from({ length: 15 }, (_, i) => {
-        const statuses: Array<'PENDING' | 'PROCESSING' | 'SUBMITTED_TO_IREMBO' | 'COMPLETED' | 'BLOCKED'> = 
-          ['PENDING', 'PROCESSING', 'SUBMITTED_TO_IREMBO', 'COMPLETED'];
-        
-        return {
-          id: `app-${i + 1}`,
-          userId: `user-${i + 1}`,
-          username: `User ${i + 1}`,
-          fullName: `Jean Claude Mugabo ${i + 1}`,
-          nationalId: `1234567890123456`,
-          phone: `+250788${String(i).padStart(6, '0')}`,
-          email: `user${i + 1}@example.com`,
-          language: ['Kinyarwanda', 'English', 'French'][Math.floor(Math.random() * 3)],
-          testMode: ['Computer-based', 'Paper-based'][Math.floor(Math.random() * 2)],
-          district: ['Gasabo', 'Kicukiro', 'Nyarugenge'][Math.floor(Math.random() * 3)],
-          testDate: new Date(Date.now() + Math.random() * 30 * 24 * 60 * 60 * 1000).toISOString(),
-          billingId: `IREMBO-${Date.now()}-${i}`,
-          status: statuses[Math.floor(Math.random() * statuses.length)],
-          adminNotes: '',
-          submittedAt: new Date(Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000).toISOString()
-        };
-      });
-      
-      setApplications(mockApplications);
+      const data = await adminAPI.getIremboApplications(1, 50);
+      const items: IremboApplication[] = (data.applications || []).map((a: any) => ({
+        id: a.id,
+        userId: a.userId,
+        fullName: a.fullName,
+        nationalId: a.nationalId,
+        phone: a.phone,
+        email: a.email,
+        language: a.language,
+        testMode: a.testMode,
+        district: a.district,
+        testDate: a.testDate,
+        status: a.status,
+        adminNotes: a.adminNotes,
+        createdAt: a.createdAt,
+      }));
+      setApplications(items);
     } catch (error) {
       console.error('Failed to load applications:', error);
     } finally {
@@ -122,12 +109,15 @@ export default function AdminIremboApplications() {
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mb-8"
+          className="mb-8 flex items-center space-x-4"
         >
-          <h1 className="text-gray-900 dark:text-white mb-2">Irembo Applications</h1>
-          <p className="text-gray-600 dark:text-gray-400">
-            Manage driving test registration requests ({applications.length} total)
-          </p>
+          <img src={iremboLogo} alt="Irembo" className="w-12 h-12 rounded-lg" />
+          <div>
+            <h1 className="text-gray-900 dark:text-white mb-1">Irembo Applications</h1>
+            <p className="text-gray-600 dark:text-gray-400">
+              Manage driving test registration requests ({applications.length} total)
+            </p>
+          </div>
         </motion.div>
 
         {/* Stats */}
@@ -199,7 +189,7 @@ export default function AdminIremboApplications() {
                     </td>
                     <td className="py-4 px-6">
                       <span className="text-gray-600 dark:text-gray-400 text-sm">
-                        {new Date(app.submittedAt).toLocaleDateString()}
+                        {app.createdAt ? new Date(app.createdAt).toLocaleDateString() : '—'}
                       </span>
                     </td>
                     <td className="py-4 px-6">
@@ -270,8 +260,8 @@ export default function AdminIremboApplications() {
                     </p>
                   </div>
                   <div>
-                    <label className="text-sm text-gray-600 dark:text-gray-400">Billing ID</label>
-                    <code className="text-gray-900 dark:text-white text-sm">{selectedApp.billingId}</code>
+                    <label className="text-sm text-gray-600 dark:text-gray-400">Created</label>
+                    <p className="text-gray-900 dark:text-white text-sm">{selectedApp.createdAt ? new Date(selectedApp.createdAt).toLocaleString() : '—'}</p>
                   </div>
                   <div>
                     <label className="text-sm text-gray-600 dark:text-gray-400">Current Status</label>
@@ -308,7 +298,7 @@ export default function AdminIremboApplications() {
 
               <div className="flex space-x-4">
                 <button
-                  onClick={() => handleUpdateStatus(selectedApp.id, selectedApp.status, selectedApp.adminNotes)}
+                  onClick={() => handleUpdateStatus(selectedApp.id, selectedApp.status, selectedApp.adminNotes || '')}
                   className="flex-1 px-6 py-3 bg-gradient-to-r from-[#00A3AD] to-[#008891] text-white rounded-xl hover:shadow-xl transition-all duration-300"
                 >
                   Save Changes

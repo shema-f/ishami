@@ -1,120 +1,32 @@
 import { motion } from 'motion/react';
-import { Trophy, Medal, Award, TrendingUp, Zap, Star, Crown } from 'lucide-react';
+import { Trophy, Medal, TrendingUp, Crown, Zap } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { leaderboardAPI } from '../services/api';
 
-interface LeaderboardEntry {
-  rank: number;
-  username: string;
-  score: number;
-  totalQuizzes: number;
-  streak: number;
-  badges: string[];
-  avatar: string;
-}
-
-const mockLeaderboard: LeaderboardEntry[] = [
-  {
-    rank: 1,
-    username: "Jean Claude M.",
-    score: 980,
-    totalQuizzes: 50,
-    streak: 15,
-    badges: ["SignMaster", "SpeedDemon", "ParkingPro"],
-    avatar: "👨🏿‍💼"
-  },
-  {
-    rank: 2,
-    username: "Divine U.",
-    score: 950,
-    totalQuizzes: 48,
-    streak: 12,
-    badges: ["SignMaster", "SafetyFirst"],
-    avatar: "👩🏿‍🎓"
-  },
-  {
-    rank: 3,
-    username: "Patrick N.",
-    score: 920,
-    totalQuizzes: 45,
-    streak: 10,
-    badges: ["SignMaster", "QuizChampion"],
-    avatar: "👨🏿‍🔧"
-  },
-  {
-    rank: 4,
-    username: "Aline U.",
-    score: 890,
-    totalQuizzes: 42,
-    streak: 8,
-    badges: ["SignMaster"],
-    avatar: "👩🏿‍⚕️"
-  },
-  {
-    rank: 5,
-    username: "Eric H.",
-    score: 870,
-    totalQuizzes: 40,
-    streak: 7,
-    badges: ["SignMaster", "Consistent"],
-    avatar: "👨🏿‍💻"
-  },
-  {
-    rank: 6,
-    username: "Marie K.",
-    score: 850,
-    totalQuizzes: 38,
-    streak: 6,
-    badges: ["SignMaster"],
-    avatar: "👩🏿‍🏫"
-  },
-  {
-    rank: 7,
-    username: "David I.",
-    score: 830,
-    totalQuizzes: 36,
-    streak: 5,
-    badges: ["SignMaster"],
-    avatar: "👨🏿‍🎓"
-  },
-  {
-    rank: 8,
-    username: "Grace M.",
-    score: 810,
-    totalQuizzes: 34,
-    streak: 5,
-    badges: ["SignMaster"],
-    avatar: "👩🏿‍💼"
-  },
-  {
-    rank: 9,
-    username: "Samuel R.",
-    score: 790,
-    totalQuizzes: 32,
-    streak: 4,
-    badges: ["Beginner"],
-    avatar: "👨🏿‍⚖️"
-  },
-  {
-    rank: 10,
-    username: "Linda N.",
-    score: 770,
-    totalQuizzes: 30,
-    streak: 4,
-    badges: ["Beginner"],
-    avatar: "👩🏿‍🔬"
-  }
-];
-
-const badgeIcons: { [key: string]: { icon: JSX.Element; color: string } } = {
-  "SignMaster": { icon: <Award className="w-4 h-4" />, color: "text-yellow-500" },
-  "SpeedDemon": { icon: <Zap className="w-4 h-4" />, color: "text-red-500" },
-  "ParkingPro": { icon: <Star className="w-4 h-4" />, color: "text-blue-500" },
-  "SafetyFirst": { icon: <Trophy className="w-4 h-4" />, color: "text-green-500" },
-  "QuizChampion": { icon: <Crown className="w-4 h-4" />, color: "text-purple-500" },
-  "Consistent": { icon: <TrendingUp className="w-4 h-4" />, color: "text-orange-500" },
-  "Beginner": { icon: <Medal className="w-4 h-4" />, color: "text-gray-500" }
-};
+type LeaderboardEntry = { userId: string; username: string; bestScore: number; quizCount: number; totalMarks: number; totalQuestions: number };
+const formatName = (name: string) => name || 'Unknown';
 
 export default function Leaderboard() {
+  const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const res = await leaderboardAPI.getLeaderboard(100);
+        if (mounted) setEntries(res.leaderboard || []);
+      } catch (e) {
+        setError('Failed to load leaderboard');
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, []);
   const getRankIcon = (rank: number) => {
     switch (rank) {
       case 1:
@@ -141,6 +53,18 @@ export default function Leaderboard() {
     }
   };
 
+  const top3 = entries.slice(0, 3);
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#00A3AD] mx-auto mb-4"></div>
+          <p className="text-gray-600 dark:text-gray-400">Loading leaderboard...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen py-8 px-4">
       <div className="max-w-7xl mx-auto">
@@ -163,6 +87,12 @@ export default function Leaderboard() {
             </span>
           </p>
         </motion.div>
+
+        {error && (
+          <div className="mb-6 rounded-xl border border-red-200 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-900/30 dark:text-red-200 px-4 py-3">
+            {error}
+          </div>
+        )}
 
         {/* Motivational Banner */}
         <motion.div
@@ -201,13 +131,12 @@ export default function Leaderboard() {
               whileHover={{ y: -8 }}
               className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl rounded-2xl p-6 border-2 border-gray-300 dark:border-gray-600 text-center"
             >
-              <div className="text-5xl mb-3">{mockLeaderboard[1].avatar}</div>
               <Medal className="w-8 h-8 text-gray-400 mx-auto mb-2" />
               <h3 className="text-gray-900 dark:text-white mb-1">
-                {mockLeaderboard[1].username}
+                {formatName(top3[1]?.username || '')}
               </h3>
-              <p className="text-2xl text-[#00A3AD]">{mockLeaderboard[1].score}</p>
-              <p className="text-sm text-gray-600 dark:text-gray-400">points</p>
+              <p className="text-2xl text-[#00A3AD]">{top3[1]?.bestScore ?? '-'}</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">best score</p>
             </motion.div>
           </div>
 
@@ -220,12 +149,11 @@ export default function Leaderboard() {
               <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-white dark:bg-gray-800 rounded-full p-2">
                 <Crown className="w-6 h-6 text-yellow-500" />
               </div>
-              <div className="text-6xl mb-3">{mockLeaderboard[0].avatar}</div>
               <h3 className="text-white mb-1">
-                {mockLeaderboard[0].username}
+                {formatName(top3[0]?.username || '')}
               </h3>
-              <p className="text-3xl text-white">{mockLeaderboard[0].score}</p>
-              <p className="text-sm text-yellow-100">points</p>
+              <p className="text-3xl text-white">{top3[0]?.bestScore ?? '-'}</p>
+              <p className="text-sm text-yellow-100">best score</p>
             </motion.div>
           </div>
 
@@ -235,13 +163,12 @@ export default function Leaderboard() {
               whileHover={{ y: -8 }}
               className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl rounded-2xl p-6 border-2 border-orange-400 dark:border-orange-600 text-center"
             >
-              <div className="text-5xl mb-3">{mockLeaderboard[2].avatar}</div>
               <Medal className="w-8 h-8 text-orange-600 mx-auto mb-2" />
               <h3 className="text-gray-900 dark:text-white mb-1">
-                {mockLeaderboard[2].username}
+                {formatName(top3[2]?.username || '')}
               </h3>
-              <p className="text-2xl text-[#00A3AD]">{mockLeaderboard[2].score}</p>
-              <p className="text-sm text-gray-600 dark:text-gray-400">points</p>
+              <p className="text-2xl text-[#00A3AD]">{top3[2]?.bestScore ?? '-'}</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">best score</p>
             </motion.div>
           </div>
         </motion.div>
@@ -259,75 +186,58 @@ export default function Leaderboard() {
                 <tr>
                   <th className="px-6 py-4 text-left text-gray-900 dark:text-white">Rank</th>
                   <th className="px-6 py-4 text-left text-gray-900 dark:text-white">User</th>
-                  <th className="px-6 py-4 text-center text-gray-900 dark:text-white">Score</th>
-                  <th className="px-6 py-4 text-center text-gray-900 dark:text-white">Quizzes</th>
-                  <th className="px-6 py-4 text-center text-gray-900 dark:text-white">Streak</th>
-                  <th className="px-6 py-4 text-left text-gray-900 dark:text-white">Badges</th>
+                  <th className="px-6 py-4 text-center text-gray-900 dark:text-white">Best Score</th>
+                  <th className="px-6 py-4 text-center text-gray-900 dark:text-white">Total Quizzes</th>
+                  <th className="px-6 py-4 text-center text-gray-900 dark:text-white">Total Marks</th>
+                  <th className="px-6 py-4 text-center text-gray-900 dark:text-white">Total Questions</th>
+                  <th className="px-6 py-4 text-center text-gray-900 dark:text-white">Average Score</th>
                 </tr>
               </thead>
               <tbody>
-                {mockLeaderboard.map((entry, index) => (
+                {entries.map((entry, index) => (
                   <motion.tr
-                    key={entry.rank}
+                    key={entry.userId}
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.7 + index * 0.05 }}
                     className={`border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors ${
-                      entry.rank <= 3 ? getRankBgColor(entry.rank) : ''
+                      index + 1 <= 3 ? getRankBgColor(index + 1) : ''
                     }`}
                   >
                     <td className="px-6 py-4">
                       <div className="flex items-center space-x-2">
-                        {getRankIcon(entry.rank)}
+                        {getRankIcon(index + 1)}
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <div className="flex items-center space-x-3">
-                        <span className="text-3xl">{entry.avatar}</span>
-                        <span className={`${entry.rank <= 3 ? 'text-white' : 'text-gray-900 dark:text-white'}`}>
-                          {entry.username}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-center">
-                      <span className={`text-lg ${entry.rank <= 3 ? 'text-white' : 'text-[#00A3AD]'}`}>
-                        {entry.score}
+                      <span className={`${index + 1 <= 3 ? 'text-white' : 'text-gray-900 dark:text-white'}`}>
+                        {formatName(entry.username)}
                       </span>
                     </td>
                     <td className="px-6 py-4 text-center">
-                      <span className={entry.rank <= 3 ? 'text-white' : 'text-gray-700 dark:text-gray-300'}>
-                        {entry.totalQuizzes}
+                      <span className={`text-lg ${index + 1 <= 3 ? 'text-white' : 'text-[#00A3AD]'}`}>
+                        {entry.bestScore}
                       </span>
                     </td>
                     <td className="px-6 py-4 text-center">
-                      <div className="flex items-center justify-center space-x-1">
-                        <Zap className={`w-4 h-4 ${entry.rank <= 3 ? 'text-white' : 'text-orange-500'}`} />
-                        <span className={entry.rank <= 3 ? 'text-white' : 'text-gray-700 dark:text-gray-300'}>
-                          {entry.streak}
-                        </span>
-                      </div>
+                      <span className={`${index + 1 <= 3 ? 'text-white' : 'text-gray-900 dark:text-white'}`}>
+                        {entry.quizCount}
+                      </span>
                     </td>
-                    <td className="px-6 py-4">
-                      <div className="flex flex-wrap gap-2">
-                        {entry.badges.map((badge, badgeIndex) => (
-                          <div
-                            key={badgeIndex}
-                            className={`flex items-center space-x-1 px-2 py-1 rounded-full text-xs ${
-                              entry.rank <= 3
-                                ? 'bg-white/20 text-white'
-                                : 'bg-gray-100 dark:bg-gray-700'
-                            }`}
-                            title={badge}
-                          >
-                            <span className={entry.rank <= 3 ? 'text-white' : badgeIcons[badge]?.color}>
-                              {badgeIcons[badge]?.icon}
-                            </span>
-                            <span className={entry.rank <= 3 ? 'text-white' : 'text-gray-700 dark:text-gray-300'}>
-                              {badge}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
+                    <td className="px-6 py-4 text-center">
+                      <span className={`${index + 1 <= 3 ? 'text-white' : 'text-gray-900 dark:text-white'}`}>
+                        {entry.totalMarks}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-center">
+                      <span className={`${index + 1 <= 3 ? 'text-white' : 'text-gray-900 dark:text-white'}`}>
+                        {entry.totalQuestions}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-center">
+                      <span className={`${index + 1 <= 3 ? 'text-white' : 'text-gray-900 dark:text-white'}`}>
+                        {Math.round((entry.totalMarks / Math.max(1, entry.totalQuestions)) * 100)}%
+                      </span>
                     </td>
                   </motion.tr>
                 ))}

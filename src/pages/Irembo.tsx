@@ -508,6 +508,51 @@ export default function Irembo() {
           </p>
         </motion.div>
       </div>
+      {/* Payment Confirmation Dialog */}
+      <Dialog open={showPaymentDialog} onOpenChange={setShowPaymentDialog}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Confirm Payment</DialogTitle>
+            <DialogDescription>
+              To complete your Irembo registration, a payment of 5,500 RWF is required.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg space-y-2">
+              <div className="flex justify-between text-sm">
+                <span>Registration Test Fee:</span>
+                <span className="font-medium">5,000 RWF</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span>Service Provider Fee:</span>
+                <span className="font-medium">500 RWF</span>
+              </div>
+              <div className="border-t border-gray-200 dark:border-gray-700 pt-2 flex justify-between font-bold">
+                <span>Total:</span>
+                <span>5,500 RWF</span>
+              </div>
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="payment-phone" className="text-right">
+                MoMo Number
+              </Label>
+              <Input
+                id="payment-phone"
+                value={paymentPhone}
+                onChange={(e) => setPaymentPhone(e.target.value)}
+                className="col-span-3"
+                placeholder="078..."
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowPaymentDialog(false)}>Cancel</Button>
+            <Button onClick={handlePaymentConfirm} disabled={!/^(\+250|0)(78|79|72|73)\d{7}$/.test(paymentPhone)}>
+              Pay Now
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

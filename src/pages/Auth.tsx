@@ -3,7 +3,7 @@ import { motion } from 'motion/react';
 import { Mail, Lock, User, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { auth as firebaseAuth } from '../lib/firebase';
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword, GoogleAuthProvider, FacebookAuthProvider, signInWithPopup } from 'firebase/auth';
 import { authAPI } from '../services/api';
 import { useNavigate } from 'react-router';
 
@@ -22,10 +22,16 @@ export default function Auth() {
   const [newPassword2, setNewPassword2] = useState('');
   const [forgotStatus, setForgotStatus] = useState('');
   
-  const { login, signup, updateUser, socialLogin, googleIdTokenLogin, firebaseLogin } = useAuth();
+  const { login, signup, updateUser, socialLogin, googleIdTokenLogin, firebaseLogin, user } = useAuth();
   const navigate = useNavigate();
   const API_BASE = (import.meta as any).env?.VITE_API_URL || 'http://localhost:5000';
   const GOOGLE_CLIENT_ID = (import.meta as any).env?.VITE_GOOGLE_CLIENT_ID || '921766633773-ggb4nlq294cvaetc8gpa5cadh6sokecu.apps.googleusercontent.com';
+
+  useEffect(() => {
+    if (user) {
+      navigate('/quiz');
+    }
+  }, [user, navigate]);
 
   const handleSocial = (provider: 'google' | 'facebook') => {
     setError('');
@@ -68,22 +74,40 @@ export default function Auth() {
   };
 
   const handleGoogleFirebaseSignIn = async () => {
+    console.log('Starting Google Sign-In...');
     try {
       setError('');
       setLoading(true);
       const provider = new GoogleAuthProvider();
+      provider.setCustomParameters({ prompt: 'select_account' });
+      
+      console.log('Opening popup...');
       const cred = await signInWithPopup(firebaseAuth, provider);
+      console.log('Popup finished, got credential:', cred.user.uid);
+      
       const oauthCred = GoogleAuthProvider.credentialFromResult(cred);
       const idToken = oauthCred?.idToken;
+      
       if (!idToken) {
+        console.error('No ID token found in result');
         setError('Google sign-in did not return an ID token');
         setLoading(false);
         return;
       }
+      
+      console.log('Exchange with backend...');
       await firebaseLogin(idToken);
+      console.log('Login successful, navigating...');
       navigate('/');
     } catch (e: any) {
-      setError(e?.message || 'Google sign-in failed');
+      console.error('Google Sign-In Error:', e);
+      if (e?.code === 'auth/popup-blocked') {
+        setError('Popup was blocked. Please allow popups for this site.');
+      } else if (e?.code === 'auth/popup-closed-by-user') {
+        setError('Sign-in cancelled.');
+      } else {
+        setError(e?.message || 'Google sign-in failed');
+      }
     } finally {
       setLoading(false);
     }
@@ -178,7 +202,7 @@ export default function Auth() {
           throw e;
         }
       }
-      navigate('/');
+      navigate('/quiz');
     } catch (err: any) {
       setError(err.message || 'Authentication failed');
     } finally {
@@ -419,7 +443,7 @@ export default function Auth() {
                   try {
                     setForgotStatus('');
                     const res = await authAPI.forgotPassword(forgotIdentifier);
-                    setForgotStatus(res.sent ? 'Reset link sent' : 'Request received');
+                    setForgotStatus(res.sent ? 'Reset link sent to your email' : 'If an account exists, a link has been sent');
                   } catch (e: any) {
                     setForgotStatus(e?.message || 'Request failed');
                   }
@@ -428,41 +452,14 @@ export default function Auth() {
               >
                 Send Reset Link
               </button>
-              <div>
-                <label className="block text-gray-700 dark:text-gray-300 mb-2">Reset Token</label>
-                <input
-                  type="text"
-                  value={resetToken}
-                  onChange={(e) => setResetToken(e.target.value)}
-                  placeholder="Paste token"
-                  className="w-full px-4 py-3 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#00A3AD] text-gray-900 dark:text-white"
-                />
+              <div className="text-center">
+                <button 
+                  onClick={() => setShowForgot(false)}
+                  className="text-sm text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+                >
+                  Cancel
+                </button>
               </div>
-              <div>
-                <label className="block text-gray-700 dark:text-gray-300 mb-2">New Password</label>
-                <input
-                  type="password"
-                  value={newPassword2}
-                  onChange={(e) => setNewPassword2(e.target.value)}
-                  placeholder="Enter new password"
-                  className="w-full px-4 py-3 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#00A3AD] text-gray-900 dark:text-white"
-                />
-              </div>
-              <button
-                onClick={async () => {
-                  try {
-                    setForgotStatus('');
-                    await authAPI.resetPassword(resetToken, newPassword2);
-                    setForgotStatus('Password updated');
-                    setShowForgot(false);
-                  } catch (e: any) {
-                    setForgotStatus(e?.message || 'Reset failed');
-                  }
-                }}
-                className="w-full py-3 bg-gradient-to-r from-[#00A3AD] to-[#008891] text-white rounded-xl hover:shadow-xl transition-all duration-300"
-              >
-                Reset Password
-              </button>
               {forgotStatus && (
                 <div className="text-center text-sm text-gray-600 dark:text-gray-400">{forgotStatus}</div>
               )}
@@ -496,7 +493,7 @@ export default function Auth() {
                 <span className="text-gray-700 dark:text-gray-300">Google</span>
               </button>
               <button
-                onClick={() => handleSocial('facebook')}
+                onClick={() => handleFacebookFirebaseSignIn()}
                 className="flex items-center justify-center space-x-2 py-3 border border-gray-200 dark:border-gray-700 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="w-5 h-5" fill="#1877F2">

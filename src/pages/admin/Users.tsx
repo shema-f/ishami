@@ -16,20 +16,26 @@ interface User {
 
 export default function AdminUsers() {
   const [users, setUsers] = useState<User[]>([]);
+  const [subscribers, setSubscribers] = useState<any[]>([]);
+  const [activeTab, setActiveTab] = useState<'users' | 'newsletter'>('users');
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
 
   useEffect(() => {
-    loadUsers();
+    loadData();
   }, []);
 
-  const loadUsers = async () => {
+  const loadData = async () => {
     try {
       setLoading(true);
-      const data = await adminAPI.getUsers(1, 50);
-      const items: User[] = (data.users || []).map((u: any) => ({
+      const [usersData, subscribersData] = await Promise.all([
+        adminAPI.getUsers(1, 50),
+        adminAPI.getNewsletterSubscribers(1, 50)
+      ]);
+
+      const items: User[] = (usersData.users || []).map((u: any) => ({
         id: u.id,
         username: u.username,
         email: u.email,
@@ -40,8 +46,12 @@ export default function AdminUsers() {
         createdAt: u.createdAt,
       }));
       setUsers(items);
+
+      if (subscribersData && subscribersData.subscribers) {
+        setSubscribers(subscribersData.subscribers);
+      }
     } catch (error) {
-      console.error('Failed to load users:', error);
+      console.error('Failed to load data:', error);
     } finally {
       setLoading(false);
     }
@@ -56,8 +66,7 @@ export default function AdminUsers() {
     if (!selectedUser) return;
     
     try {
-      // TODO: Replace with actual API call
-      // await adminAPI.updateUser(selectedUser.id, selectedUser);
+      await adminAPI.updateUser(selectedUser.id, selectedUser);
       
       console.log('Updating user:', selectedUser);
       
@@ -67,6 +76,7 @@ export default function AdminUsers() {
       setSelectedUser(null);
     } catch (error) {
       console.error('Failed to update user:', error);
+      alert('Failed to update user. Please try again.');
     }
   };
 
@@ -74,13 +84,13 @@ export default function AdminUsers() {
     if (!confirm('Are you sure you want to delete this user?')) return;
     
     try {
-      // TODO: Replace with actual API call
-      // await adminAPI.deleteUser(userId);
+      await adminAPI.deleteUser(userId);
       
       console.log('Deleting user:', userId);
       setUsers(users.filter(u => u.id !== userId));
     } catch (error) {
       console.error('Failed to delete user:', error);
+      alert('Failed to delete user. Please try again.');
     }
   };
 
@@ -115,6 +125,30 @@ export default function AdminUsers() {
           </p>
         </motion.div>
 
+        {/* Tabs */}
+        <div className="flex space-x-4 mb-6">
+          <button
+            onClick={() => setActiveTab('users')}
+            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+              activeTab === 'users'
+                ? 'bg-[#00A3AD] text-white'
+                : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
+            }`}
+          >
+            Users
+          </button>
+          <button
+            onClick={() => setActiveTab('newsletter')}
+            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+              activeTab === 'newsletter'
+                ? 'bg-[#00A3AD] text-white'
+                : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
+            }`}
+          >
+            Newsletter Subscribers
+          </button>
+        </div>
+
         {/* Search Bar */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -135,6 +169,7 @@ export default function AdminUsers() {
         </motion.div>
 
         {/* Users Table */}
+        {activeTab === 'users' ? (
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -212,6 +247,52 @@ export default function AdminUsers() {
             </table>
           </div>
         </motion.div>
+        ) : (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4 }}
+            className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden"
+          >
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50 dark:bg-gray-900/50 border-b border-gray-200 dark:border-gray-700">
+                  <tr>
+                    <th className="text-left py-4 px-6 text-gray-600 dark:text-gray-400">Email</th>
+                    <th className="text-left py-4 px-6 text-gray-600 dark:text-gray-400">Status</th>
+                    <th className="text-left py-4 px-6 text-gray-600 dark:text-gray-400">Joined</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {subscribers.map((sub) => (
+                    <tr key={sub.id} className="border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                      <td className="py-4 px-6">
+                        <span className="text-gray-900 dark:text-white">{sub.email}</span>
+                      </td>
+                      <td className="py-4 px-6">
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+                          {sub.status}
+                        </span>
+                      </td>
+                      <td className="py-4 px-6">
+                        <span className="text-gray-600 dark:text-gray-400 text-sm">
+                          {sub.createdAt ? new Date(sub.createdAt).toLocaleDateString() : '—'}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                  {subscribers.length === 0 && (
+                    <tr>
+                      <td colSpan={3} className="py-8 text-center text-gray-500 dark:text-gray-400">
+                        No newsletter subscribers found
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </motion.div>
+        )}
 
         {/* Edit User Modal */}
         {showEditModal && selectedUser && (

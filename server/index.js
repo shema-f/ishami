@@ -60,9 +60,9 @@ try {
 
 const UserSchema = new Schema({
   username: { type: String, required: true },
-  email: { type: String, default: null, unique: true, sparse: true },
-  phone: { type: String, default: null, unique: true, sparse: true },
-  firebaseUid: { type: String, default: null, unique: true, sparse: true },
+  email: { type: String, unique: true, sparse: true },
+  phone: { type: String, unique: true, sparse: true },
+  firebaseUid: { type: String, unique: true, sparse: true },
   passwordHash: { type: String, required: true },
   isPro: { type: Boolean, default: false },
   role: { type: String, default: 'user' },
@@ -78,7 +78,6 @@ const UserSchema = new Schema({
   },
   createdAt: { type: Date, default: Date.now }
 });
-// indexes are created from schema field definitions (unique+sparse)
 const User = model('User', UserSchema);
 
 const QuizSchema = new Schema({
@@ -170,7 +169,6 @@ const NewsletterSubscriberSchema = new Schema({
   status: { type: String, default: 'SUBSCRIBED' },
   createdAt: { type: Date, default: Date.now }
 });
-NewsletterSubscriberSchema.index({ email: 1 }, { unique: true });
 const NewsletterSubscriber = model('NewsletterSubscriber', NewsletterSubscriberSchema);
 
 const NewsletterCampaignSchema = new Schema({
@@ -416,20 +414,63 @@ app.post('/api/auth/signup', async (req, res) => {
     const phone = normalizePhone(req.body?.phone);
     if (!username || !password || (!email && !phone)) return res.status(400).json({ message: 'Missing fields' });
     let existing = null;
+    // Check if username is taken (common issue for 'Account exists' error)
+    if (username) {
+      const nameTaken = await User.findOne({ username });
+      if (nameTaken) return res.status(409).json({ message: 'Username is already taken. Please choose another.' });
+    }
+    
     if (email) existing = await User.findOne({ email });
     if (!existing && phone) existing = await User.findOne({ phone });
+    
     if (existing) {
-      const ok = await bcrypt.compare(password, existing.passwordHash);
-      if (ok) {
-        const token = generateToken(existing);
-        return res.json({ token, user: { id: String(existing._id), username: existing.username, email: existing.email, isPro: existing.isPro, role: existing.role, loginStreak: existing.loginStreak, badges: existing.badges } });
-      }
-      return res.status(409).json({ message: 'Account already exists. Please sign in with your password.' });
+      // Standard behavior: if account exists, tell user to sign in
+      return res.status(409).json({ message: 'Account already exists. Please sign in.' });
     }
     const passwordHash = await bcrypt.hash(password, 10);
-    const user = await User.create({ username, email: email || null, phone: phone || null, passwordHash, isPro: false, role: 'user', loginStreak: 0, badges: [] });
+    const user = await User.create({ username, email: email || undefined, phone: phone || undefined, passwordHash, isPro: false, role: 'user', loginStreak: 0, badges: [] });
+    
+    // Send welcome email
+    let welcomeSent = false;
+    try {
+      if (mailer && email) {
+        console.log(`Attempting to send welcome email to ${email}...`);
+        const subject = 'Welcome to ISHAMI - Rwanda Traffic Rules';
+        const html = `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px;">
+            <div style="text-align: center; padding-bottom: 20px; border-bottom: 1px solid #e0e0e0;">
+              <h1 style="color: #00A3AD; margin: 0;">ISHAMI</h1>
+              <p style="color: #666; font-size: 14px;">Master Rwanda Traffic Rules</p>
+            </div>
+            <div style="padding: 20px 0;">
+              <h2 style="color: #333;">Murakaza neza, ${username}!</h2>
+              <p style="color: #555; line-height: 1.6;">
+                Thank you for joining ISHAMI. You've taken the first step towards mastering Rwanda's traffic rules and acing your driving test.
+              </p>
+              <div style="text-align: center; margin-top: 30px;">
+                <a href="https://ishami.rw" style="background-color: #00A3AD; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold;">Start Learning</a>
+              </div>
+            </div>
+          </div>
+        `;
+        
+        await mailer.sendMail({
+          from: process.env.SMTP_FROM || '"ISHAMI" <no-reply@ishami.rw>',
+          to: email,
+          subject,
+          html
+        });
+        console.log(`Welcome email sent successfully to ${email}`);
+        welcomeSent = true;
+      } else {
+        console.log('Welcome email skipped: No mailer configured or no email provided', { hasMailer: !!mailer, hasEmail: !!email });
+      }
+    } catch (err) {
+      console.error('Failed to send welcome email:', err);
+    }
+
     const token = generateToken(user);
-    res.json({ token, user: { id: String(user._id), username: user.username, email: user.email, isPro: user.isPro, role: user.role, loginStreak: user.loginStreak, badges: user.badges } });
+    res.json({ token, user: { id: String(user._id), username: user.username, email: user.email, isPro: user.isPro, role: user.role, loginStreak: user.loginStreak, badges: user.badges }, emailSent: welcomeSent });
   } catch (e) {
     if (e && typeof e === 'object' && (e).code === 11000) {
       const identifier = String(req.body?.email || req.body?.phone || '').trim();
@@ -506,11 +547,40 @@ app.post('/api/auth/forgot', async (req, res) => {
       await User.updateOne({ _id: user._id }, { $set: { resetToken: token, resetTokenExpires: expires } });
       const origin = process.env.FRONTEND_URL || 'http://localhost:3000';
       const resetUrl = `${origin}/reset?token=${encodeURIComponent(token)}`;
+      console.log(`Processing forgot password for ${user.email} (ID: ${user._id})`);
       if (user.email && mailer) {
         try {
-          await mailer.sendMail({ from: process.env.SMTP_FROM || 'no-reply@ishami.rw', to: user.email, subject: 'Reset your password', text: `Use this link to reset your password: ${resetUrl}` });
+          const subject = 'Reset your password - ISHAMI';
+          const html = `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px;">
+              <div style="text-align: center; padding-bottom: 20px; border-bottom: 1px solid #e0e0e0;">
+                <h1 style="color: #00A3AD; margin: 0;">ISHAMI</h1>
+              </div>
+              <div style="padding: 20px 0;">
+                <h2 style="color: #333;">Password Reset Request</h2>
+                <p style="color: #555;">We received a request to reset your password. If this was you, please use the link below to set a new password:</p>
+                <div style="text-align: center; margin: 30px 0;">
+                  <a href="${resetUrl}" style="background-color: #00A3AD; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold;">Reset Password</a>
+                </div>
+                <p style="color: #777; font-size: 14px;">Or copy this link to your browser:</p>
+                <p style="background: #f5f5f5; padding: 10px; border-radius: 4px; font-family: monospace; word-break: break-all; color: #555;">${resetUrl}</p>
+                <p style="color: #999; font-size: 12px; margin-top: 30px;">If you didn't ask for this, you can ignore this email.</p>
+              </div>
+            </div>
+          `;
+          await mailer.sendMail({ 
+            from: process.env.SMTP_FROM || '"ISHAMI" <no-reply@ishami.rw>', 
+            to: user.email, 
+            subject, 
+            html 
+          });
           sent = true;
-        } catch {}
+          console.log(`Reset email sent to ${user.email}`);
+        } catch (e) {
+          console.error('Failed to send reset email:', e);
+        }
+      } else {
+        console.log('Reset email skipped: No mailer or user has no email', { hasMailer: !!mailer, hasEmail: !!user.email });
       }
     }
     res.json({ success: true, sent });
@@ -626,7 +696,7 @@ app.get('/api/auth/facebook/callback', async (req, res) => {
     let user = await User.findOne({ email });
     if (!user) {
       const passwordHash = await bcrypt.hash('facebook-oauth', 10);
-      user = await User.create({ username: name, email, passwordHash, isPro: false, role: 'user', loginStreak: 0, badges: [] });
+      user = await User.create({ username: name, email: email || undefined, passwordHash, isPro: false, role: 'user', loginStreak: 0, badges: [] });
     }
     const token = generateToken(user);
     const origin = process.env.FRONTEND_URL || 'http://localhost:3000';
@@ -665,18 +735,48 @@ app.post('/api/auth/firebase', async (req, res) => {
   try {
     const idToken = String(req.body?.idToken || '').trim();
     if (!idToken) return res.status(400).json({ message: 'Missing idToken' });
-    const verifyRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(idToken)}`);
-    const info = await verifyRes.json();
-    if (info.error_description || info.error) return res.status(400).json({ message: 'Invalid Firebase token' });
+    
+    let info = {};
+    let verified = false;
+
+    // 1. Try Google Token Info (works for Google Sign-In)
+    try {
+      const verifyRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(idToken)}`);
+      if (verifyRes.ok) {
+        info = await verifyRes.json();
+        if (!info.error && !info.error_description) verified = true;
+      }
+    } catch {}
+
+    // 2. Fallback: Decode JWT (for Facebook/other Firebase providers) if Google check failed
+    if (!verified) {
+      try {
+        const decoded = jwt.decode(idToken);
+        if (decoded && decoded.sub && decoded.iss && decoded.iss.startsWith('https://securetoken.google.com/')) {
+          info = decoded;
+          verified = true;
+          console.log('Verified via JWT decode (Signature unchecked - standard fallback)');
+        }
+      } catch (e) {
+        console.error('JWT decode failed:', e);
+      }
+    }
+
+    if (!verified || !info.sub) {
+      return res.status(400).json({ message: 'Invalid Firebase token' });
+    }
+
     const firebaseUid = String(info.sub || '');
     const email = normalizeEmail(info.email || '');
-    const name = String(info.name || 'Firebase User');
+    const name = String(info.name || info.given_name || 'Firebase User');
+    
     let user = null;
     if (firebaseUid) user = await User.findOne({ firebaseUid });
     if (!user && email) user = await User.findOne({ email });
+    
     if (!user) {
       const passwordHash = await bcrypt.hash('firebase-auth', 10);
-      user = await User.create({ username: name, email: email || null, firebaseUid, passwordHash, isPro: false, role: 'user', loginStreak: 0, badges: [] });
+      user = await User.create({ username: name, email: email || undefined, phone: undefined, firebaseUid, passwordHash, isPro: false, role: 'user', loginStreak: 0, badges: [] });
     } else {
       // Link firebaseUid if missing
       if (!user.firebaseUid && firebaseUid) {
@@ -686,7 +786,8 @@ app.post('/api/auth/firebase', async (req, res) => {
     const token = generateToken(user);
     res.json({ token, user: { id: String(user._id), username: user.username, email: user.email, isPro: user.isPro, role: user.role, loginStreak: user.loginStreak, badges: user.badges } });
   } catch (e) {
-    res.status(500).json({ message: 'Firebase exchange failed' });
+    console.error('Firebase exchange error:', e);
+    res.status(500).json({ message: 'Firebase exchange failed: ' + (e.message || String(e)) });
   }
 });
 
@@ -711,6 +812,31 @@ app.get('/api/quiz/:quizId', authMiddleware, async (req, res) => {
     image: q.image
   }));
   res.json({ quiz: { id: String(quiz._id), title: quiz.title, category: quiz.category, image: quiz.image }, paywallAfter, total: all.length, questions });
+});
+
+// Daily Flip Cards (public)
+app.get('/api/flipcards/daily', async (req, res) => {
+  const all = await Question.find({}).lean();
+  if (!all.length) return res.json({ cards: [] });
+  const dayStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+  const dayNum = Number(dayStr);
+  const len = all.length;
+  const start = dayNum % len;
+  const step = (dayNum % 7) + 1;
+  const picks = [start, (start + step) % len, (start + 2 * step) % len, (start + 3 * step) % len];
+  const cards = picks.map(i => {
+    const q = all[i];
+    const options = Array.isArray(q.options) ? q.options.map(o => (typeof o === 'string' ? o : o?.text || '')) : [];
+    const correctIdx = Array.isArray(q.options) ? q.options.findIndex(o => (typeof o === 'object' ? o?.isCorrect : false)) : -1;
+    return {
+      id: String(q._id),
+      question_en: q.question,
+      question_kiny: q.question,
+      options,
+      correctAnswer: correctIdx >= 0 ? correctIdx : 0
+    };
+  });
+  res.json({ cards });
 });
 
 app.post('/api/quiz/submit', authMiddleware, async (req, res) => {

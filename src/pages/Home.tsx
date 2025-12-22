@@ -7,6 +7,8 @@ import { newsletterAPI } from '../services/api';
 import FlipCard from '../components/FlipCard';
 import TestimonialCarousel from '../components/TestimonialCarousel';
 
+import { toast } from 'sonner';
+
 export default function Home() {
   const [email, setEmail] = useState('');
   const [subscribed, setSubscribed] = useState(false);
@@ -39,8 +41,11 @@ export default function Home() {
       if (res?.success) {
         setSubscribed(true);
         setEmail('');
+        toast.success('Welcome to our newsletter! Thanks for subscribing.');
       }
-    } catch {}
+    } catch {
+      toast.error('Subscription failed. Please try again.');
+    }
   };
 
   const features = [

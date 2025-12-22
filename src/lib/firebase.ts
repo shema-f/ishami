@@ -3,13 +3,13 @@ import { getAuth } from 'firebase/auth';
 import { getAnalytics, isSupported } from 'firebase/analytics';
 
 const firebaseConfig = {
-  apiKey: 'AIzaSyBHymXsb9sYF7pE_i4mFOLWUYbVVvUaBGI',
-  authDomain: 'ishamiapp.firebaseapp.com',
-  projectId: 'ishamiapp',
-  storageBucket: 'ishamiapp.firebasestorage.app',
-  messagingSenderId: '935381983142',
-  appId: '1:935381983142:web:db43d7b94bfd2cd7aeb967',
-  measurementId: 'G-J9P2FTLTL9',
+  apiKey: "AIzaSyChSixeb-RMRBvZoFBIqzQub2TYquqdODM",
+  authDomain: "ishami-7187d.firebaseapp.com",
+  projectId: "ishami-7187d",
+  storageBucket: "ishami-7187d.firebasestorage.app",
+  messagingSenderId: "551728090851",
+  appId: "1:551728090851:web:bcd2e648c45b0edef67fd6",
+  measurementId: "G-1QHL0KTPDQ"
 };
 
 const app = initializeApp(firebaseConfig);

@@ -61,7 +61,6 @@ export const authAPI = {
    * Backend endpoint: POST /api/auth/signup
    */
   signup: async (username: string, email: string, password: string, phone?: string) => {
-    // TODO: Replace with actual API call
     return apiCall('/api/auth/signup', {
       method: 'POST',
       body: JSON.stringify({ username, email, password, phone }),
@@ -73,7 +72,6 @@ export const authAPI = {
    * Backend endpoint: POST /api/auth/signin
    */
   signin: async (email: string, password: string) => {
-    // TODO: Replace with actual API call
     return apiCall('/api/auth/signin', {
       method: 'POST',
       body: JSON.stringify({ email, password }),
@@ -256,6 +254,20 @@ export const resourcesAPI = {
     const token = localStorage.getItem('authToken');
     const baseUrl = (import.meta as any).env?.VITE_API_URL || 'http://localhost:5000';
     window.open(`${baseUrl}/api/resources/download/${resourceId}?token=${token}`, '_blank');
+  },
+};
+
+// ============================================
+// FLIPCARD APIs
+// ============================================
+
+export const flipcardsAPI = {
+  /**
+   * Get daily flip cards
+   * Backend endpoint: GET /api/flipcards/daily
+   */
+  getDaily: async () => {
+    return apiCall('/api/flipcards/daily');
   },
 };
 
@@ -480,7 +492,7 @@ export const adminAPI = {
    */
   uploadResource: async (formData: FormData) => {
     const token = localStorage.getItem('authToken');
-    const response = await fetch(`${API_BASE_URL}/api/admin/resources`, {
+    const response = await fetch(`${PRIMARY_API_BASE}/api/admin/resources`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${token}`,

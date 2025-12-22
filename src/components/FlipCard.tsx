@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
+import { flipcardsAPI } from '../services/api';
 
 interface Question {
   id: number;
@@ -42,6 +43,27 @@ const sampleQuestions: Question[] = [
 
 export default function FlipCard() {
   const [flippedCards, setFlippedCards] = useState<Set<number>>(new Set());
+  const [questions, setQuestions] = useState<Question[]>(sampleQuestions);
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const res = await flipcardsAPI.getDaily();
+        const cards = Array.isArray(res?.cards) ? res.cards : [];
+        if (active && cards.length) {
+          setQuestions(cards.map((c: any, idx: number) => ({
+            id: idx + 1,
+            question_en: c.question_en,
+            question_kiny: c.question_kiny,
+            options: Array.isArray(c.options) ? c.options : [],
+            correctAnswer: typeof c.correctAnswer === 'number' ? c.correctAnswer : 0,
+          })));
+        }
+      } catch {}
+    })();
+    return () => { active = false; };
+  }, []);
 
   const toggleFlip = (id: number) => {
     setFlippedCards(prev => {
@@ -57,11 +79,11 @@ export default function FlipCard() {
 
   return (
     <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-      {sampleQuestions.map((question) => {
+      {questions.map((question) => {
         const isFlipped = flippedCards.has(question.id);
         
         return (
-          <div key={question.id} className="perspective-1000">
+          <div key={question.id} style={{ perspective: '1000px' }}>
             <motion.div
               className="relative w-full h-80 cursor-pointer"
               onClick={() => toggleFlip(question.id)}
@@ -71,7 +93,7 @@ export default function FlipCard() {
             >
               {/* Front of Card */}
               <div
-                className="absolute inset-0 w-full h-full bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl rounded-2xl p-6 border border-gray-200/20 dark:border-gray-700/20 shadow-xl flex flex-col justify-center items-center"
+                className="absolute inset-0 w-full h-full bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl rounded-2xl p-6 border border-gray-200/20 dark:border-gray-700/20 shadow-2xl flex flex-col justify-center items-center"
                 style={{ backfaceVisibility: 'hidden' }}
               >
                 <div className="text-4xl mb-4">❓</div>
@@ -86,7 +108,7 @@ export default function FlipCard() {
 
               {/* Back of Card */}
               <div
-                className="absolute inset-0 w-full h-full bg-gradient-to-br from-[#00A3AD] to-[#008891] rounded-2xl p-6 shadow-xl flex flex-col justify-center items-center text-white"
+                className="absolute inset-0 w-full h-full bg-gradient-to-br from-[#00A3AD] to-[#008891] rounded-2xl p-6 shadow-2xl flex flex-col justify-center items-center text-white"
                 style={{
                   backfaceVisibility: 'hidden',
                   transform: 'rotateY(180deg)'

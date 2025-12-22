@@ -91,10 +91,49 @@ export default function Simulation() {
                   Practice real-world situations in a safe, virtual environment.
                 </p>
                 
-                {/* Coming Soon Badge */}
-                <div className="inline-flex items-center space-x-2 px-6 py-3 bg-gradient-to-r from-[#00A3AD] to-[#008891] rounded-full">
-                  <Play className="w-5 h-5 text-white animate-pulse" />
-                  <span className="text-white">Launching December 2024</span>
+                {/* Coming Soon Badge & Notify */}
+                <div className="flex flex-col items-center gap-4">
+                  <div className="inline-flex items-center space-x-2 px-6 py-3 bg-gradient-to-r from-[#00A3AD] to-[#008891] rounded-full">
+                    <Play className="w-5 h-5 text-white animate-pulse" />
+                    <span className="text-white">Launching December 2024</span>
+                  </div>
+
+                  <Dialog open={notifyOpen} onOpenChange={setNotifyOpen}>
+                    <DialogTrigger asChild>
+                      <Button variant="outline" className="bg-white/10 text-white border-white/20 hover:bg-white/20 hover:text-white backdrop-blur-sm">
+                        <Bell className="w-4 h-4 mr-2" />
+                        Notify Me When Ready
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="sm:max-w-[425px]">
+                      <DialogHeader>
+                        <DialogTitle>Join the Waitlist</DialogTitle>
+                        <DialogDescription>
+                          Be the first to know when our 3D Driving Simulation launches. We'll send you an email when it's ready.
+                        </DialogDescription>
+                      </DialogHeader>
+                      <div className="grid gap-4 py-4">
+                        <div className="grid grid-cols-4 items-center gap-4">
+                          <Label htmlFor="email" className="text-right">
+                            Email
+                          </Label>
+                          <Input
+                            id="email"
+                            type="email"
+                            value={notifyEmail}
+                            onChange={(e) => setNotifyEmail(e.target.value)}
+                            className="col-span-3"
+                            placeholder="you@example.com"
+                          />
+                        </div>
+                      </div>
+                      <DialogFooter>
+                        <Button onClick={handleNotify} disabled={loading || !notifyEmail}>
+                          {loading ? 'Subscribing...' : 'Notify Me'}
+                        </Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
                 </div>
               </motion.div>
             </div>

@@ -30,6 +30,7 @@ export const router = createBrowserRouter([
       { path: "resources", Component: Resources },
       { path: "leaderboard", Component: Leaderboard },
       { path: "auth", Component: Auth },
+      { path: "reset", Component: ResetPassword },
       { path: "irembo", Component: Irembo },
       { path: "*", Component: NotFound },
     ],

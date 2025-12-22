@@ -76,6 +76,11 @@ export default function Footer() {
                   Leaderboard
                 </Link>
               </li>
+              <li>
+                <a href="https://wa.me/250780000000" target="_blank" rel="noopener noreferrer" className="text-gray-600 dark:text-gray-400 hover:text-[#00A3AD] transition-colors">
+                  Contact Us
+                </a>
+              </li>
             </ul>
           </div>
 
@@ -99,7 +104,7 @@ export default function Footer() {
                 </a>
               </li>
               <li>
-                <a href="mailto:support@ishami.rw" className="text-gray-600 dark:text-gray-400 hover:text-[#00A3AD] transition-colors flex items-center">
+                <a href="https://wa.me/250788888888" target="_blank" rel="noopener noreferrer" className="text-gray-600 dark:text-gray-400 hover:text-[#00A3AD] transition-colors flex items-center">
                   <Mail className="w-4 h-4 mr-2" />
                   Contact Us
                 </a>

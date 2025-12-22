@@ -5,7 +5,8 @@
  * For production: 'https://api.ishami.rw' or your domain
  */
 
-const API_BASE_URL = (import.meta as any).env?.VITE_API_URL || 'http://localhost:5000';
+const PRIMARY_API_BASE = (import.meta as any).env?.VITE_API_URL || 'http://localhost:5000';
+const FALLBACK_API_BASE = 'http://localhost:5001';
 
 // Helper function for API calls
 async function apiCall(endpoint: string, options: RequestInit = {}) {
@@ -17,12 +18,32 @@ async function apiCall(endpoint: string, options: RequestInit = {}) {
     ...options.headers,
   };
 
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-    ...options,
-    headers,
-  });
+  let response: Response | null = null;
+  let baseTried = PRIMARY_API_BASE;
+  try {
+    response = await fetch(`${baseTried}${endpoint}`, {
+      ...options,
+      headers,
+    });
+  } catch (err: any) {
+    const isNetworkError = err && (err.name === 'TypeError' || /fetch/i.test(String(err)));
+    const isLocalhostPrimary = PRIMARY_API_BASE.includes('localhost:5000');
+    if (isNetworkError && isLocalhostPrimary) {
+      baseTried = FALLBACK_API_BASE;
+      response = await fetch(`${baseTried}${endpoint}`, {
+        ...options,
+        headers,
+      });
+    } else {
+      throw err;
+    }
+  }
 
   if (!response.ok) {
+    if (response.status === 401) {
+      try { localStorage.removeItem('authToken'); localStorage.removeItem('user'); } catch {}
+      if (typeof window !== 'undefined') window.location.href = '/auth';
+    }
     const error = await response.json().catch(() => ({ message: 'Request failed' }));
     throw new Error(error.message || `HTTP ${response.status}`);
   }
@@ -94,6 +115,18 @@ export const authAPI = {
     return apiCall('/api/auth/reset', {
       method: 'POST',
       body: JSON.stringify({ token, password }),
+    });
+  },
+  checkIdentifier: async (identifier: string) => {
+    return apiCall('/api/auth/check', {
+      method: 'POST',
+      body: JSON.stringify({ identifier }),
+    });
+  },
+  firebaseExchange: async (idToken: string) => {
+    return apiCall('/api/auth/firebase', {
+      method: 'POST',
+      body: JSON.stringify({ idToken }),
     });
   },
 };
@@ -184,7 +217,8 @@ export const paymentAPI = {
     userId: string;
     amount: number;
     phone: string;
-    provider: 'mtn' | 'airtel';
+    provider: 'mtn';
+    product: 'pro' | 'irembo';
   }) => {
     return apiCall('/api/payment/initiate', {
       method: 'POST',
@@ -220,7 +254,8 @@ export const resourcesAPI = {
    */
   downloadResource: async (resourceId: string) => {
     const token = localStorage.getItem('authToken');
-    window.open(`${API_BASE_URL}/api/resources/download/${resourceId}?token=${token}`, '_blank');
+    const baseUrl = (import.meta as any).env?.VITE_API_URL || 'http://localhost:5000';
+    window.open(`${baseUrl}/api/resources/download/${resourceId}?token=${token}`, '_blank');
   },
 };
 
@@ -257,6 +292,7 @@ export const iremboAPI = {
     testMode: string;
     district: string;
     testDate: string;
+    transactionId: string;
   }) => {
     return apiCall('/api/irembo/register', {
       method: 'POST',

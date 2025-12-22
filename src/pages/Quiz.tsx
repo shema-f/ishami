@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Clock, Award, Zap, CheckCircle, XCircle, Sparkles } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router';
-import { quizAPI } from '../services/api';
+import { quizAPI, paymentAPI } from '../services/api';
 
 interface QuizQuestion {
   id: string;
@@ -24,7 +24,7 @@ interface QuizCard {
  
 
 export default function Quiz() {
-  const { user } = useAuth();
+  const { user, updateUser } = useAuth();
   const navigate = useNavigate();
   const [quizzes, setQuizzes] = useState<QuizCard[]>([]);
   const [selectedQuiz, setSelectedQuiz] = useState<QuizCard | null>(null);
@@ -38,6 +38,11 @@ export default function Quiz() {
   const [showPaywall, setShowPaywall] = useState(false);
   const [quizCompleted, setQuizCompleted] = useState(false);
   const [answers, setAnswers] = useState<Array<{ questionId: string; selectedOption: number; isCorrect: boolean }>>([]);
+  const [payPhone, setPayPhone] = useState('');
+  const [paying, setPaying] = useState(false);
+  const [txnId, setTxnId] = useState<string | null>(null);
+  const [paymentStatus, setPaymentStatus] = useState<'PENDING' | 'SUCCESS' | 'FAILED' | null>(null);
+  const [paymentError, setPaymentError] = useState<string | null>(null);
 
   useEffect(() => {
     if (timeLeft > 0 && !quizCompleted) {
@@ -61,6 +66,7 @@ export default function Quiz() {
 
   const startQuiz = async (quiz: QuizCard) => {
     try {
+      if (!user) { navigate('/auth'); return; }
       const res = await quizAPI.getQuiz(quiz.id);
       setSelectedQuiz(quiz);
       setQuestions(res.questions);
@@ -156,7 +162,7 @@ export default function Quiz() {
     const passed = percentage >= 70;
 
     return (
-      <div className="min-h-screen py-12 px-4 flex items-center justify-center">
+      <div className="font-montserrat min-h-screen py-12 px-4 flex items-center justify-center">
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -217,7 +223,7 @@ export default function Quiz() {
 
   if (!selectedQuiz) {
     return (
-      <div className="min-h-screen py-8 px-4">
+      <div className="font-montserrat min-h-screen py-8 px-4">
         <div className="max-w-7xl mx-auto">
           <h1 className="text-gray-900 dark:text-white mb-6">Hitamo Ikizamini</h1>
           <p className="text-gray-600 dark:text-gray-400 mb-8">Buri kizamini kigizwe n'ibibazo 20. Ifoto izashyirwa hano.</p>
@@ -251,7 +257,7 @@ export default function Quiz() {
   const question = questions[currentQuestion];
 
   return (
-    <div className="min-h-screen py-8 px-4">
+    <div className="font-montserrat min-h-screen py-8 px-4">
       <div className="max-w-4xl mx-auto">
         {/* Header with Timer and Progress */}
         <motion.div
@@ -418,7 +424,7 @@ export default function Quiz() {
               <h2 className="text-gray-900 dark:text-white mb-4">Unlock Pro Access</h2>
               <p className="text-gray-600 dark:text-gray-400 mb-6">
                 You've completed 6 free questions! Unlock all 20 questions, unlimited quizzes, 
-                and premium features for only <span className="text-[#00A3AD]">100 RWF</span>.
+                and premium features for only <span className="text-[#00A3AD]">1,000 RWF</span>.
               </p>
               
               <div className="bg-[#00A3AD]/10 rounded-xl p-4 mb-6">
@@ -444,9 +450,55 @@ export default function Quiz() {
               </div>
 
               <div className="space-y-3">
-                <button className="w-full px-6 py-4 bg-gradient-to-r from-[#00A3AD] to-[#008891] text-white rounded-xl hover:shadow-xl transition-all duration-300">
-                  Upgrade Now - 100 RWF
+                <input
+                  type="tel"
+                  placeholder="MTN phone (e.g. 0788xxxxxx)"
+                  value={payPhone}
+                  onChange={(e) => setPayPhone(e.target.value)}
+                  className="w-full px-4 py-3 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl text-gray-900 dark:text-white"
+                />
+                <button
+                  onClick={async () => {
+                    if (!user) { navigate('/login'); return; }
+                    if (!payPhone) { setPaymentError('Enter phone number'); return; }
+                    try {
+                      setPaying(true);
+                      setPaymentError(null);
+                      const res = await paymentAPI.initiatePayment({ userId: user.id, amount: 1000, phone: payPhone, provider: 'mtn', product: 'pro' });
+                      setTxnId(res.transactionId);
+                      setPaymentStatus('PENDING');
+                      let tries = 0;
+                      const iv = setInterval(async () => {
+                        tries++;
+                        try {
+                          const s = await paymentAPI.checkStatus(res.transactionId);
+                          setPaymentStatus(s.status);
+                          if (s.status === 'SUCCESS') {
+                            clearInterval(iv);
+                            setPaying(false);
+                            updateUser({ isPro: true });
+                            setShowPaywall(false);
+                          } else if (s.status === 'FAILED' || tries > 40) {
+                            clearInterval(iv);
+                            setPaying(false);
+                          }
+                        } catch {
+                          clearInterval(iv);
+                          setPaying(false);
+                        }
+                      }, 3000);
+                    } catch (e: any) {
+                      setPaying(false);
+                      setPaymentError(e?.message || 'Payment failed');
+                    }
+                  }}
+                  disabled={paying}
+                  className="w-full px-6 py-4 bg-gradient-to-r from-[#00A3AD] to-[#008891] text-white rounded-xl hover:shadow-xl transition-all duration-300 disabled:opacity-50"
+                >
+                  {paying ? 'Processing…' : 'Pay with MTN MoMo - 1,000 RWF'}
                 </button>
+                {paymentError && <div className="text-red-500 text-sm">{paymentError}</div>}
+                {txnId && paymentStatus === 'PENDING' && <div className="text-sm text-gray-600 dark:text-gray-400">Awaiting MoMo approval on your phone…</div>}
                 <button
                   onClick={() => setShowPaywall(false)}
                   className="w-full px-6 py-4 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"

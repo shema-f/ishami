@@ -37,6 +37,8 @@ export default function AdminPayments() {
         provider: String(p.provider || '').toLowerCase(),
         createdAt: p.createdAt,
         transactionId: p.id,
+        username: p.username || 'Unknown',
+        email: p.email || '',
       }));
       setPayments(items);
     } catch (error) {
@@ -48,11 +50,15 @@ export default function AdminPayments() {
 
   const filteredPayments = payments
     .filter(p => filter === 'ALL' || p.status === filter)
-    .filter(p => 
-      p.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      p.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      p.transactionId.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    .filter(p => {
+      const term = searchTerm.toLowerCase();
+      return (
+        (p.username || '').toLowerCase().includes(term) ||
+        (p.email || '').toLowerCase().includes(term) ||
+        (p.transactionId || '').toLowerCase().includes(term) ||
+        (p.userId || '').toLowerCase().includes(term)
+      );
+    });
 
   const stats = {
     total: payments.length,
@@ -217,6 +223,7 @@ export default function AdminPayments() {
                 <tr>
                   <th className="text-left py-4 px-6 text-gray-600 dark:text-gray-400">Transaction ID</th>
                   <th className="text-left py-4 px-6 text-gray-600 dark:text-gray-400">User</th>
+                  <th className="text-left py-4 px-6 text-gray-600 dark:text-gray-400">Email</th>
                   <th className="text-left py-4 px-6 text-gray-600 dark:text-gray-400">Amount</th>
                   <th className="text-left py-4 px-6 text-gray-600 dark:text-gray-400">Source</th>
                   <th className="text-left py-4 px-6 text-gray-600 dark:text-gray-400">Status</th>
@@ -233,8 +240,12 @@ export default function AdminPayments() {
                     </td>
                     <td className="py-4 px-6">
                       <div>
-                        <p className="text-gray-900 dark:text-white">User: <code className="font-mono text-sm">{payment.userId}</code></p>
+                        <p className="text-gray-900 dark:text-white">{payment.username}</p>
+                        <p className="text-xs text-gray-600 dark:text-gray-400">ID: <code className="font-mono text-xs">{payment.userId}</code></p>
                       </div>
+                    </td>
+                    <td className="py-4 px-6">
+                      <span className="text-gray-600 dark:text-gray-400 text-sm">{payment.email || '—'}</span>
                     </td>
                     <td className="py-4 px-6">
                       <span className="text-gray-900 dark:text-white">{payment.amount} RWF</span>

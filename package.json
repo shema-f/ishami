@@ -48,7 +48,8 @@
             "tailwind-merge": "*",
     "vaul": "^1.1.2",
     "nodemailer": "^6.9.11",
-    "sib-api-v3-sdk": "^8.5.0"
+    "sib-api-v3-sdk": "^8.5.0",
+    "firebase": "^11.0.1"
   },
       "devDependencies": {
             "@types/node": "^20.10.0",

@@ -1,10 +1,11 @@
 import { motion } from 'motion/react';
 import { FileText, Video, Image as ImageIcon, Download, Lock } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { resourcesAPI } from '../services/api';
 
 interface Resource {
-  id: number;
+  id: string;
   title_en: string;
   title_kiny: string;
   type: 'PDF' | 'Video' | 'Image';
@@ -15,108 +16,44 @@ interface Resource {
   size?: string;
 }
 
-const mockResources: Resource[] = [
-  {
-    id: 1,
-    title_en: "Rwanda Traffic Signs Complete Guide",
-    title_kiny: "Ibyapa by'Umuhanda - Umuyoboro Wuzuye",
-    type: "PDF",
-    category: "Signs",
-    isPremium: false,
-    fileUrl: "#",
-    size: "2.5 MB"
-  },
-  {
-    id: 2,
-    title_en: "Parking Techniques Video Tutorial",
-    title_kiny: "Amavideo yo Kwiga Guhagarika",
-    type: "Video",
-    category: "Practical",
-    isPremium: true,
-    fileUrl: "#",
-    thumbnail: "https://images.unsplash.com/photo-1560361635-9d6b6befc49b"
-  },
-  {
-    id: 3,
-    title_en: "Speed Limit Signs Reference",
-    title_kiny: "Ibyapa by'Umuvuduko",
-    type: "Image",
-    category: "Signs",
-    isPremium: false,
-    fileUrl: "#",
-    size: "1.2 MB"
-  },
-  {
-    id: 4,
-    title_en: "Road Safety Rules Handbook",
-    title_kiny: "Igitabo cy'Umutekano ku Mihanda",
-    type: "PDF",
-    category: "Safety",
-    isPremium: false,
-    fileUrl: "#",
-    size: "3.8 MB"
-  },
-  {
-    id: 5,
-    title_en: "Overtaking Rules & Techniques",
-    title_kiny: "Amategeko yo Gusiganwa",
-    type: "Video",
-    category: "Advanced",
-    isPremium: true,
-    fileUrl: "#",
-    thumbnail: "https://images.unsplash.com/photo-1760689036908-b37db1b784b8"
-  },
-  {
-    id: 6,
-    title_en: "Emergency Procedures Guide",
-    title_kiny: "Ibikoresho by'Akaga",
-    type: "PDF",
-    category: "Safety",
-    isPremium: true,
-    fileUrl: "#",
-    size: "1.5 MB"
-  },
-  {
-    id: 7,
-    title_en: "Warning Signs Collection",
-    title_kiny: "Ibyapa by'Umuburo",
-    type: "Image",
-    category: "Signs",
-    isPremium: false,
-    fileUrl: "#",
-    size: "2.1 MB"
-  },
-  {
-    id: 8,
-    title_en: "Night Driving Safety Video",
-    title_kiny: "Gutwara Nijoro - Umutekano",
-    type: "Video",
-    category: "Advanced",
-    isPremium: true,
-    fileUrl: "#",
-    thumbnail: "https://images.unsplash.com/photo-1641295437952-092f7e8b65ba"
-  }
-];
+const mockResources: Resource[] = [];
 
 export default function Resources() {
   const { user } = useAuth();
   const [filter, setFilter] = useState<'All' | 'PDF' | 'Video' | 'Image'>('All');
   const [showPaywall, setShowPaywall] = useState(false);
+  const [resources, setResources] = useState<Resource[]>([]);
 
-  const filteredResources = mockResources.filter(
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const data = await resourcesAPI.getResources();
+        if (active && Array.isArray(data?.resources)) {
+          setResources(data.resources);
+        }
+      } catch (e) {
+        console.error('Failed to fetch resources', e);
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const filteredResources = (resources.length ? resources : mockResources).filter(
     resource => filter === 'All' || resource.type === filter
   );
 
   const handleDownload = (resource: Resource) => {
+    if (!resource.fileUrl) {
+      return;
+    }
     if (resource.isPremium && !user?.isPro) {
       setShowPaywall(true);
       return;
     }
-    
-    // TODO: Implement actual download logic
-    console.log('Downloading:', resource.title_en);
-    // In production, this would trigger a download from your backend
-    // window.open(resource.fileUrl, '_blank');
+    resourcesAPI.downloadResource(resource.id);
   };
 
   const getIcon = (type: string) => {
@@ -249,13 +186,21 @@ export default function Resources() {
 
                 <button
                   onClick={() => handleDownload(resource)}
+                  disabled={!resource.fileUrl || (resource.isPremium && !user?.isPro)}
                   className={`w-full px-6 py-3 rounded-xl flex items-center justify-center space-x-2 transition-all duration-300 ${
-                    resource.isPremium && !user?.isPro
-                      ? 'bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400'
-                      : 'bg-gradient-to-r from-[#00A3AD] to-[#008891] text-white hover:shadow-xl hover:shadow-[#00A3AD]/50'
+                    !resource.fileUrl
+                      ? 'bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400 cursor-not-allowed'
+                      : resource.isPremium && !user?.isPro
+                        ? 'bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400 cursor-not-allowed'
+                        : 'bg-gradient-to-r from-[#00A3AD] to-[#008891] text-white hover:shadow-xl hover:shadow-[#00A3AD]/50'
                   }`}
                 >
-                  {resource.isPremium && !user?.isPro ? (
+                  {!resource.fileUrl ? (
+                    <>
+                      <Lock className="w-4 h-4" />
+                      <span>Coming Soon</span>
+                    </>
+                  ) : resource.isPremium && !user?.isPro ? (
                     <>
                       <Lock className="w-4 h-4" />
                       <span>Pro Only</span>

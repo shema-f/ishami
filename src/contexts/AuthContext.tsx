@@ -16,6 +16,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   login: (email: string, password: string) => Promise<void>;
   signup: (username: string, email: string, password: string, phone?: string) => Promise<void>;
+  firebaseLogin: (idToken: string) => Promise<void>;
   socialLogin: (provider: 'google' | 'facebook') => Promise<void>;
   googleIdTokenLogin: (idToken: string) => Promise<void>;
   loginPhone: (phone: string, password: string) => Promise<void>;
@@ -60,6 +61,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser(res.user);
   };
 
+  const firebaseLogin = async (idToken: string) => {
+    const res = await authAPI.firebaseExchange(idToken);
+    localStorage.setItem('authToken', res.token);
+    localStorage.setItem('user', JSON.stringify(res.user));
+    setUser(res.user);
+  };
+
   const socialLogin = async (provider: 'google' | 'facebook') => {
     const res = await authAPI.socialSignin(provider);
     localStorage.setItem('authToken', res.token);
@@ -96,7 +104,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ user, isAuthenticated: !!user, login, signup, socialLogin, googleIdTokenLogin, loginPhone, logout, updateUser }}>
+    <AuthContext.Provider value={{ user, isAuthenticated: !!user, login, signup, firebaseLogin, socialLogin, googleIdTokenLogin, loginPhone, logout, updateUser }}>
       {children}
     </AuthContext.Provider>
   );

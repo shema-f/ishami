@@ -1,8 +1,11 @@
 import { useState } from 'react';
 import { motion } from 'motion/react';
 import { FileCheck, Phone, Mail, Calendar, MapPin, AlertCircle, CheckCircle2, Clock } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
+import { iremboAPI, paymentAPI } from '../services/api';
 
 export default function Irembo() {
+  const { user } = useAuth();
   const [formData, setFormData] = useState({
     fullName: '',
     nationalId: '',
@@ -16,8 +19,12 @@ export default function Irembo() {
   });
 
   const [submitted, setSubmitted] = useState(false);
-  const [billingId, setBillingId] = useState('');
+  const [applicationId, setApplicationId] = useState('');
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
+  const [processing, setProcessing] = useState(false);
+  const [txnId, setTxnId] = useState<string | null>(null);
+  const [paymentStatus, setPaymentStatus] = useState<'PENDING' | 'SUCCESS' | 'FAILED' | null>(null);
+  const [paymentError, setPaymentError] = useState<string | null>(null);
 
   const districts = [
     'Gasabo', 'Kicukiro', 'Nyarugenge', 'Bugesera', 'Gatsibo',
@@ -63,24 +70,48 @@ export default function Irembo() {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    if (!validate()) {
-      return;
+    if (!validate()) return;
+    if (!user) return;
+    try {
+      setProcessing(true);
+      setPaymentError(null);
+      const init = await paymentAPI.initiatePayment({ userId: user.id, amount: 5500, phone: formData.phone, provider: 'mtn', product: 'irembo' });
+      setTxnId(init.transactionId);
+      setPaymentStatus('PENDING');
+      let tries = 0;
+      await new Promise<void>((resolve) => {
+        const iv = setInterval(async () => {
+          tries++;
+          try {
+            const st = await paymentAPI.checkStatus(init.transactionId);
+            setPaymentStatus(st.status);
+            if (st.status === 'SUCCESS') { clearInterval(iv); resolve(); }
+            if (st.status === 'FAILED' || tries > 40) { clearInterval(iv); resolve(); }
+          } catch { clearInterval(iv); resolve(); }
+        }, 3000);
+      });
+      if (paymentStatus === 'FAILED') { setProcessing(false); setPaymentError('Payment failed'); return; }
+      const reg = await iremboAPI.register({
+        userId: user.id,
+        fullName: formData.fullName,
+        nationalId: formData.nationalId,
+        phone: formData.phone,
+        email: formData.email,
+        language: formData.language,
+        testMode: formData.testMode,
+        district: formData.district,
+        testDate: formData.testDate,
+        transactionId: String(init.transactionId),
+      });
+      setApplicationId(reg.application?.id || '');
+      setSubmitted(true);
+      setProcessing(false);
+    } catch (e: any) {
+      setProcessing(false);
+      setPaymentError(e?.message || 'Request failed');
     }
-
-    // TODO: Replace with actual API call to /api/irembo/register
-    // Generate mock billing ID
-    const mockBillingId = `IREMBO-${Date.now()}-${Math.random().toString(36).substring(7).toUpperCase()}`;
-    setBillingId(mockBillingId);
-    setSubmitted(true);
-
-    // In production, this would:
-    // 1. Submit to backend API
-    // 2. Backend validates and creates Irembo application
-    // 3. Backend generates billing ID for MTN/Airtel payment
-    // 4. User has 8 hours to complete payment
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -123,15 +154,15 @@ export default function Irembo() {
               Your Irembo driving test registration has been received.
             </p>
 
-            {/* Billing Information */}
+            {/* Payment & Application */}
             <div className="bg-gradient-to-br from-[#00A3AD]/10 to-purple-500/10 rounded-2xl p-6 mb-8">
-              <h3 className="text-gray-900 dark:text-white mb-4">Payment Information</h3>
+              <h3 className="text-gray-900 dark:text-white mb-4">Registration Details</h3>
               
               <div className="space-y-4 text-left">
                 <div className="flex items-center justify-between">
-                  <span className="text-gray-600 dark:text-gray-400">Billing ID:</span>
+                  <span className="text-gray-600 dark:text-gray-400">Transaction:</span>
                   <code className="px-3 py-1 bg-white dark:bg-gray-700 rounded-lg text-[#00A3AD]">
-                    {billingId}
+                    {txnId}
                   </code>
                 </div>
                 
@@ -140,6 +171,11 @@ export default function Irembo() {
                   <span className="text-gray-900 dark:text-white">5,500 RWF</span>
                 </div>
                 
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-600 dark:text-gray-400">Application ID:</span>
+                  <span className="text-gray-900 dark:text-white">{applicationId || '—'}</span>
+                </div>
+
                 <div className="flex items-center justify-between">
                   <span className="text-gray-600 dark:text-gray-400">Valid Until:</span>
                   <span className="text-orange-500 flex items-center">
@@ -150,26 +186,16 @@ export default function Irembo() {
               </div>
             </div>
 
-            {/* Payment Methods */}
-            <div className="mb-8">
-              <h3 className="text-gray-900 dark:text-white mb-4">Pay with:</h3>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 border-2 border-yellow-400 rounded-xl">
-                  <div className="text-3xl mb-2">📱</div>
-                  <h4 className="text-gray-900 dark:text-white">MTN Mobile Money</h4>
-                  <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
-                    Dial *182*7*1# and use billing ID
-                  </p>
-                </div>
-                <div className="p-4 bg-red-50 dark:bg-red-900/20 border-2 border-red-400 rounded-xl">
-                  <div className="text-3xl mb-2">📱</div>
-                  <h4 className="text-gray-900 dark:text-white">Airtel Money</h4>
-                  <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
-                    Dial *500# and use billing ID
-                  </p>
-                </div>
+            {paymentStatus === 'PENDING' && (
+              <div className="mb-8 p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-xl">
+                <p className="text-gray-900 dark:text-white">Awaiting MTN MoMo approval on your phone…</p>
               </div>
-            </div>
+            )}
+            {paymentError && (
+              <div className="mb-8 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl">
+                <p className="text-red-600 dark:text-red-400">{paymentError}</p>
+              </div>
+            )}
 
             {/* Important Notice */}
             <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-xl p-4 mb-6">
@@ -178,7 +204,7 @@ export default function Irembo() {
                 <div className="text-left">
                   <h4 className="text-orange-900 dark:text-orange-100 mb-2">Important:</h4>
                   <ul className="text-orange-800 dark:text-orange-200 text-sm space-y-1">
-                    <li>• Your billing ID is valid for 8 hours only</li>
+                    <li>• Approve the MTN MoMo prompt within 8 hours</li>
                     <li>• If payment is not completed, your slot will be released</li>
                     <li>• You will receive an SMS confirmation after payment</li>
                     <li>• If no SMS within 2 hours, contact us at support@ishami.rw</li>
@@ -454,10 +480,11 @@ export default function Irembo() {
             {/* Submit Button */}
             <button
               type="submit"
-              className="w-full py-4 bg-gradient-to-r from-purple-600 to-purple-800 text-white rounded-xl hover:shadow-xl hover:shadow-purple-500/50 transition-all duration-300 flex items-center justify-center space-x-2"
+              className="w-full py-4 bg-gradient-to-r from-purple-600 to-purple-800 text-white rounded-xl hover:shadow-xl hover:shadow-purple-500/50 transition-all duration-300 flex items-center justify-center space-x-2 disabled:opacity-50"
+              disabled={processing}
             >
               <FileCheck className="w-5 h-5" />
-              <span>Submit Registration - 5,500 RWF</span>
+              <span>{processing ? 'Processing…' : 'Submit Registration - 5,500 RWF'}</span>
             </button>
           </form>
         </motion.div>

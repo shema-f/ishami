@@ -59,15 +59,10 @@ export default function AdminIremboApplications() {
 
   const handleUpdateStatus = async (appId: string, newStatus: string, notes: string) => {
     try {
-      // TODO: Replace with actual API call
-      // await adminAPI.updateIremboApplication(appId, { status: newStatus, adminNotes: notes });
-      
-      console.log('Updating application:', appId, newStatus, notes);
-      
+      await adminAPI.updateIremboApplication(appId, { status: newStatus, adminNotes: notes });
       setApplications(applications.map(app => 
         app.id === appId ? { ...app, status: newStatus as any, adminNotes: notes } : app
       ));
-      
       setShowDetailModal(false);
       setSelectedApp(null);
     } catch (error) {

@@ -11,6 +11,7 @@ import nodemailer from 'nodemailer';
 import SibApiV3Sdk from 'sib-api-v3-sdk';
 import fs from 'fs';
 import path from 'path';
+import { getAccessToken, requestToPay, getRequestToPayStatus, normalizeMsisdn } from './services/momo.js';
 
 try {
   const here = path.resolve(process.cwd(), '.env');
@@ -25,6 +26,14 @@ const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/ishami
 
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json({ limit: '1mb' }));
+app.use((req, res, next) => {
+  const start = Date.now();
+  res.on('finish', () => {
+    const ms = Date.now() - start;
+    console.log(`[${new Date().toISOString()}] ${req.method} ${req.originalUrl} ${res.statusCode} ${ms}ms`);
+  });
+  next();
+});
 
 process.on('uncaughtException', (err) => {
   console.error('Uncaught Exception:', err?.stack || err);
@@ -53,6 +62,7 @@ const UserSchema = new Schema({
   username: { type: String, required: true },
   email: { type: String, default: null, unique: true, sparse: true },
   phone: { type: String, default: null, unique: true, sparse: true },
+  firebaseUid: { type: String, default: null, unique: true, sparse: true },
   passwordHash: { type: String, required: true },
   isPro: { type: Boolean, default: false },
   role: { type: String, default: 'user' },
@@ -106,6 +116,9 @@ const PaymentSchema = new Schema({
   amount: Number,
   phone: String,
   provider: String,
+  product: { type: String, default: 'pro' },
+  currency: { type: String, default: 'RWF' },
+  providerRef: { type: String, default: null },
   status: { type: String, default: 'PENDING' },
   createdAt: { type: Date, default: Date.now }
 });
@@ -113,9 +126,15 @@ PaymentSchema.index({ createdAt: -1 });
 const Payment = model('Payment', PaymentSchema);
 
 const ResourceSchema = new Schema({
-  title: String,
-  description: String,
-  premium: { type: Boolean, default: false }
+  title: { type: String, required: true },
+  titleKiny: { type: String, default: '' },
+  type: { type: String, default: 'PDF' }, // PDF | Video | Image
+  category: { type: String, default: 'General' },
+  premium: { type: Boolean, default: false },
+  fileUrl: { type: String, default: '' },
+  thumbnail: { type: String, default: '' },
+  size: { type: String, default: '' },
+  createdAt: { type: Date, default: Date.now }
 });
 const Resource = model('Resource', ResourceSchema);
 
@@ -165,6 +184,25 @@ const NewsletterCampaignSchema = new Schema({
   sentAt: { type: Date }
 });
 const NewsletterCampaign = model('NewsletterCampaign', NewsletterCampaignSchema);
+
+const NotificationSchema = new Schema({
+  title: String,
+  body: String,
+  segment: String,
+  scheduledAt: { type: Date },
+  createdAt: { type: Date, default: Date.now }
+});
+const Notification = model('Notification', NotificationSchema);
+
+const FraudLogSchema = new Schema({
+  userId: { type: Types.ObjectId, ref: 'User' },
+  type: String,
+  message: String,
+  meta: Schema.Types.Mixed,
+  createdAt: { type: Date, default: Date.now }
+});
+FraudLogSchema.index({ createdAt: -1 });
+const FraudLog = model('FraudLog', FraudLogSchema);
 
 async function seed() {
   const adminEmail = process.env.ADMIN_EMAIL || 'admin@ishami.rw';
@@ -248,8 +286,46 @@ async function seed() {
   const rCount = await Resource.countDocuments();
   if (rCount === 0) {
     await Resource.insertMany([
-      { title: 'Traffic Signs Guide', description: 'PDF guide to common signs', premium: false },
-      { title: 'Full Rules Handbook', description: 'Comprehensive manual', premium: true }
+      {
+        title: 'Traffic Signs Guide',
+        titleKiny: "Ibyapa by'Umuhanda",
+        type: 'PDF',
+        category: 'Signs',
+        premium: false,
+        fileUrl: 'https://drive.google.com/file/d/17Pt9vbzRCFVxBps1btslCv98-yFch3C2/view?usp=sharing',
+        thumbnail: 'https://placehold.co/640x360?text=Signs',
+        size: '2.5 MB'
+      },
+      {
+        title: 'Parking Techniques Video',
+        titleKiny: 'Uburyo bwo Gupaka',
+        type: 'Video',
+        category: 'Practical',
+        premium: true,
+        fileUrl: '',
+        thumbnail: 'https://placehold.co/640x360?text=Practical',
+        size: '12.3 MB'
+      },
+      {
+        title: 'Road Safety Handbook',
+        titleKiny: 'Handbook y’Umutekano',
+        type: 'PDF',
+        category: 'Safety',
+        premium: false,
+        fileUrl: '',
+        thumbnail: 'https://placehold.co/640x360?text=Safety',
+        size: '3.8 MB'
+      },
+      {
+        title: 'Overtaking Rules Video',
+        titleKiny: 'Amategeko yo Gusonga',
+        type: 'Video',
+        category: 'Advanced',
+        premium: true,
+        fileUrl: '',
+        thumbnail: 'https://placehold.co/640x360?text=Advanced',
+        size: '15.7 MB'
+      }
     ]);
   }
 }
@@ -271,7 +347,9 @@ await Promise.all([
   Payment.syncIndexes(),
   Resource.syncIndexes(),
   IremboApplication.syncIndexes(),
-  Simulation.syncIndexes()
+  Simulation.syncIndexes(),
+  Notification.syncIndexes(),
+  FraudLog.syncIndexes()
 ]);
 await seed();
 
@@ -281,6 +359,36 @@ const upload = multer({ dest: 'server/uploads/' });
 // Helpers
 function generateToken(user) {
   return jwt.sign({ id: String(user._id), role: user.role, isPro: user.isPro }, JWT_SECRET, { expiresIn: '7d' });
+}
+
+function toDirectDownloadUrl(url) {
+  const s = String(url || '').trim();
+  if (!s) return s;
+  try {
+    const u = new URL(s);
+    if (u.hostname.includes('drive.google.com')) {
+      // /file/d/<id>/view or /uc?id=<id>
+      const m = s.match(/\/file\/d\/([^/]+)/);
+      const id = m ? m[1] : (u.searchParams.get('id') || '');
+      if (id) {
+        return `https://drive.google.com/uc?export=download&id=${id}`;
+      }
+    }
+  } catch {}
+  return s;
+}
+
+function normalizeEmail(v) {
+  const s = String(v || '').trim().toLowerCase();
+  return s || null;
+}
+
+function normalizePhone(v) {
+  let s = String(v || '').trim().replace(/\s+/g, '');
+  if (!s) return null;
+  if (s.startsWith('+')) return s;
+  if (s.startsWith('07')) return '+250' + s.slice(1);
+  return s;
 }
 
 async function authMiddleware(req, res, next) {
@@ -298,18 +406,25 @@ async function authMiddleware(req, res, next) {
   }
 }
 
+// provided by services/momo.js
+
 // AUTH
 app.post('/api/auth/signup', async (req, res) => {
   try {
-    const { username, email, password, phone } = req.body || {};
+    const { username, password } = req.body || {};
+    const email = normalizeEmail(req.body?.email);
+    const phone = normalizePhone(req.body?.phone);
     if (!username || !password || (!email && !phone)) return res.status(400).json({ message: 'Missing fields' });
-    if (email) {
-      const existingEmail = await User.findOne({ email });
-      if (existingEmail) return res.status(409).json({ message: 'Email already exists' });
-    }
-    if (phone) {
-      const existingPhone = await User.findOne({ phone });
-      if (existingPhone) return res.status(409).json({ message: 'Phone already exists' });
+    let existing = null;
+    if (email) existing = await User.findOne({ email });
+    if (!existing && phone) existing = await User.findOne({ phone });
+    if (existing) {
+      const ok = await bcrypt.compare(password, existing.passwordHash);
+      if (ok) {
+        const token = generateToken(existing);
+        return res.json({ token, user: { id: String(existing._id), username: existing.username, email: existing.email, isPro: existing.isPro, role: existing.role, loginStreak: existing.loginStreak, badges: existing.badges } });
+      }
+      return res.status(409).json({ message: 'Account already exists. Please sign in with your password.' });
     }
     const passwordHash = await bcrypt.hash(password, 10);
     const user = await User.create({ username, email: email || null, phone: phone || null, passwordHash, isPro: false, role: 'user', loginStreak: 0, badges: [] });
@@ -317,7 +432,18 @@ app.post('/api/auth/signup', async (req, res) => {
     res.json({ token, user: { id: String(user._id), username: user.username, email: user.email, isPro: user.isPro, role: user.role, loginStreak: user.loginStreak, badges: user.badges } });
   } catch (e) {
     if (e && typeof e === 'object' && (e).code === 11000) {
-      return res.status(409).json({ message: 'Account already exists' });
+      const identifier = String(req.body?.email || req.body?.phone || '').trim();
+      const idEmail = identifier.includes('@') ? normalizeEmail(identifier) : null;
+      const idPhone = !idEmail ? normalizePhone(identifier) : null;
+      const user = idEmail ? await User.findOne({ email: idEmail }) : await User.findOne({ phone: idPhone });
+      if (user) {
+        const ok = await bcrypt.compare(String(req.body?.password || ''), user.passwordHash);
+        if (ok) {
+          const token = generateToken(user);
+          return res.json({ token, user: { id: String(user._id), username: user.username, email: user.email, isPro: user.isPro, role: user.role, loginStreak: user.loginStreak, badges: user.badges } });
+        }
+      }
+      return res.status(409).json({ message: 'Account already exists. Please sign in.' });
     }
     res.status(500).json({ message: 'Signup failed' });
   }
@@ -325,15 +451,15 @@ app.post('/api/auth/signup', async (req, res) => {
 
 app.post('/api/auth/signin', async (req, res) => {
   try {
-    const { email, phone, password } = req.body || {};
+    const { password } = req.body || {};
+    const rawEmail = req.body?.email;
+    const rawPhone = req.body?.phone;
+    const email = normalizeEmail(rawEmail);
+    const phone = normalizePhone(rawPhone || (!rawEmail?.includes('@') ? rawEmail : null));
     if (!password) return res.status(400).json({ message: 'Missing password' });
     let user = null;
     if (email) {
-      if (String(email).includes('@')) {
-        user = await User.findOne({ email });
-      } else {
-        user = await User.findOne({ phone: email });
-      }
+      user = await User.findOne({ email });
     } else if (phone) {
       user = await User.findOne({ phone });
     }
@@ -347,6 +473,20 @@ app.post('/api/auth/signin', async (req, res) => {
   }
 });
 
+app.post('/api/auth/check', async (req, res) => {
+  try {
+    const identifier = String(req.body?.identifier || '').trim();
+    if (!identifier) return res.status(400).json({ message: 'Missing identifier' });
+    const email = identifier.includes('@') ? normalizeEmail(identifier) : null;
+    const phone = !email ? normalizePhone(identifier) : null;
+    let user = null;
+    if (email) user = await User.findOne({ email });
+    else if (phone) user = await User.findOne({ phone });
+    res.json({ exists: !!user });
+  } catch {
+    res.status(500).json({ message: 'Server error' });
+  }
+});
 app.get('/api/auth/verify', authMiddleware, (req, res) => {
   const u = req.user;
   res.json({ user: { id: String(u._id), username: u.username, email: u.email, isPro: u.isPro, role: u.role, loginStreak: u.loginStreak, badges: u.badges } });
@@ -364,7 +504,7 @@ app.post('/api/auth/forgot', async (req, res) => {
     let sent = false;
     if (user) {
       await User.updateOne({ _id: user._id }, { $set: { resetToken: token, resetTokenExpires: expires } });
-      const origin = process.env.FRONTEND_URL || 'http://localhost:5173';
+      const origin = process.env.FRONTEND_URL || 'http://localhost:3000';
       const resetUrl = `${origin}/reset?token=${encodeURIComponent(token)}`;
       if (user.email && mailer) {
         try {
@@ -447,7 +587,7 @@ app.get('/api/auth/google/callback', async (req, res) => {
       user = await User.create({ username: name, email: normalizedEmail, passwordHash, isPro: false, role: 'user', loginStreak: 0, badges: [] });
     }
     const token = generateToken(user);
-    const origin = process.env.FRONTEND_URL || 'http://localhost:5173';
+    const origin = process.env.FRONTEND_URL || 'http://localhost:3000';
     const payload = { type: 'oauth_success', token, user: { id: String(user._id), username: user.username, email: user.email, isPro: user.isPro, role: user.role, loginStreak: user.loginStreak, badges: user.badges } };
     const json = JSON.stringify(payload).replace(/</g, '\\u003c').replace(/>/g, '\\u003e');
     res.send(`<!doctype html><html><head><meta charset="utf-8"/></head><body><script>(function(){var data=JSON.parse('${json}');var origin='${origin}';if(window.opener){window.opener.postMessage(data, origin);}window.close();})();</script></body></html>`);
@@ -489,7 +629,7 @@ app.get('/api/auth/facebook/callback', async (req, res) => {
       user = await User.create({ username: name, email, passwordHash, isPro: false, role: 'user', loginStreak: 0, badges: [] });
     }
     const token = generateToken(user);
-    const origin = process.env.FRONTEND_URL || 'http://localhost:5173';
+    const origin = process.env.FRONTEND_URL || 'http://localhost:3000';
     const payload = { type: 'oauth_success', token, user: { id: String(user._id), username: user.username, email: user.email, isPro: user.isPro, role: user.role, loginStreak: user.loginStreak, badges: user.badges } };
     const json = JSON.stringify(payload).replace(/</g, '\\u003c').replace(/>/g, '\\u003e');
     res.send(`<!doctype html><html><head><meta charset="utf-8"/></head><body><script>(function(){var data=JSON.parse('${json}');var origin='${origin}';if(window.opener){window.opener.postMessage(data, origin);}window.close();})();</script></body></html>`);
@@ -517,6 +657,36 @@ app.post('/api/auth/google/verify-id-token', async (req, res) => {
     res.json({ token, user: { id: String(user._id), username: user.username, email: user.email, isPro: user.isPro, role: user.role, loginStreak: user.loginStreak, badges: user.badges } });
   } catch {
     res.status(500).json({ message: 'Verification error' });
+  }
+});
+
+// Exchange Firebase ID token for backend JWT
+app.post('/api/auth/firebase', async (req, res) => {
+  try {
+    const idToken = String(req.body?.idToken || '').trim();
+    if (!idToken) return res.status(400).json({ message: 'Missing idToken' });
+    const verifyRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(idToken)}`);
+    const info = await verifyRes.json();
+    if (info.error_description || info.error) return res.status(400).json({ message: 'Invalid Firebase token' });
+    const firebaseUid = String(info.sub || '');
+    const email = normalizeEmail(info.email || '');
+    const name = String(info.name || 'Firebase User');
+    let user = null;
+    if (firebaseUid) user = await User.findOne({ firebaseUid });
+    if (!user && email) user = await User.findOne({ email });
+    if (!user) {
+      const passwordHash = await bcrypt.hash('firebase-auth', 10);
+      user = await User.create({ username: name, email: email || null, firebaseUid, passwordHash, isPro: false, role: 'user', loginStreak: 0, badges: [] });
+    } else {
+      // Link firebaseUid if missing
+      if (!user.firebaseUid && firebaseUid) {
+        await User.updateOne({ _id: user._id }, { $set: { firebaseUid } });
+      }
+    }
+    const token = generateToken(user);
+    res.json({ token, user: { id: String(user._id), username: user.username, email: user.email, isPro: user.isPro, role: user.role, loginStreak: user.loginStreak, badges: user.badges } });
+  } catch (e) {
+    res.status(500).json({ message: 'Firebase exchange failed' });
   }
 });
 
@@ -664,32 +834,155 @@ app.post('/api/ai/ask', authMiddleware, async (req, res) => {
   });
 });
 
-// PAYMENTS (simulated)
+async function momoRequestToPay(amount, phone, note, product) {
+  const ref = uuidv4();
+  await requestToPay({
+    amount,
+    currency: 'RWF',
+    externalId: ref,
+    msisdn: normalizeMsisdn(phone),
+    payerMessage: product === 'irembo' ? 'ISHAMI Irembo' : 'ISHAMI Pro',
+    payeeNote: note || 'ISHAMI',
+  });
+  return ref;
+}
+
+async function momoStatus(ref) {
+  return await getRequestToPayStatus(ref);
+}
+
 app.post('/api/payment/initiate', authMiddleware, async (req, res) => {
-  const { amount, phone, provider } = req.body || {};
-  const payment = await Payment.create({ userId: req.user._id, amount, phone, provider, status: 'PENDING' });
-  setTimeout(async () => {
-    const p = await Payment.findById(payment._id);
-    if (p) {
-      p.status = 'SUCCESS';
-      await p.save();
-      const u = await User.findById(req.user._id);
-      if (u) { u.isPro = true; await u.save(); }
+  try {
+    const { amount, phone, provider, product } = req.body || {};
+    const prod = String(product || 'pro');
+    const expected = prod === 'irembo' ? 5500 : 1000;
+    if (Number(amount) !== expected) {
+      await FraudLog.create({ userId: req.user._id, type: 'amount_mismatch', message: 'Mismatched amount', meta: { sent: amount, expected, product: prod } });
+      return res.status(400).json({ message: 'Invalid amount' });
     }
-  }, 1500);
-  res.json({ transactionId: String(payment._id), status: payment.status });
+    if (String(provider || '').toLowerCase() !== 'mtn') return res.status(400).json({ message: 'Unsupported provider' });
+    if (!phone) return res.status(400).json({ message: 'Phone required' });
+    const ref = await momoRequestToPay(expected, phone, 'ISHAMI', prod);
+    const payment = await Payment.create({ userId: req.user._id, amount: expected, phone, provider: 'mtn', product: prod, providerRef: ref, status: 'PENDING' });
+    res.json({ transactionId: String(payment._id), status: payment.status, providerRef: ref });
+  } catch (e) {
+    await FraudLog.create({ userId: req.user?._id, type: 'initiate_error', message: 'Payment initiate failed', meta: { error: String(e && e.message || e) } });
+    res.status(500).json({ message: 'Payment error' });
+  }
 });
 
 app.get('/api/payment/status/:transactionId', authMiddleware, async (req, res) => {
   const txn = await Payment.findById(req.params.transactionId);
   if (!txn) return res.status(404).json({ message: 'Not found' });
+  if (txn.status === 'PENDING' && txn.providerRef) {
+    try {
+      const st = await momoStatus(txn.providerRef);
+      if (st === 'SUCCESSFUL') {
+        txn.status = 'SUCCESS';
+        await txn.save();
+        if (txn.product === 'pro') {
+          const u = await User.findById(txn.userId);
+          if (u) { u.isPro = true; await u.save(); }
+        }
+      } else if (st === 'FAILED') {
+        txn.status = 'FAILED';
+        await txn.save();
+      }
+    } catch (e) {}
+  }
   res.json({ transactionId: String(txn._id), status: txn.status });
+});
+
+// Plural routes (alias) for compatibility with requested API spec
+app.post('/api/payments/initiate', authMiddleware, async (req, res) => {
+  try {
+    const { amount, phone, provider, product } = req.body || {};
+    const prod = String(product || 'pro');
+    const expected = prod === 'irembo' ? 5500 : 1000;
+    if (Number(amount) !== expected) {
+      await FraudLog.create({ userId: req.user._id, type: 'amount_mismatch', message: 'Mismatched amount', meta: { sent: amount, expected, product: prod } });
+      return res.status(400).json({ message: 'Invalid amount' });
+    }
+    if (String(provider || '').toLowerCase() !== 'mtn') return res.status(400).json({ message: 'Unsupported provider' });
+    if (!phone) return res.status(400).json({ message: 'Phone required' });
+    const ref = await momoRequestToPay(expected, phone, 'ISHAMI', prod);
+    const payment = await Payment.create({ userId: req.user._id, amount: expected, phone, provider: 'mtn', product: prod, providerRef: ref, status: 'PENDING' });
+    res.json({ transactionId: String(payment._id), status: payment.status, providerRef: ref });
+  } catch (e) {
+    await FraudLog.create({ userId: req.user?._id, type: 'initiate_error', message: 'Payment initiate failed', meta: { error: String(e && e.message || e) } });
+    res.status(500).json({ message: 'Payment error' });
+  }
+});
+
+app.get('/api/payments/status/:transactionId', authMiddleware, async (req, res) => {
+  const txn = await Payment.findById(req.params.transactionId);
+  if (!txn) return res.status(404).json({ message: 'Not found' });
+  if (txn.status === 'PENDING' && txn.providerRef) {
+    try {
+      const st = await momoStatus(txn.providerRef);
+      if (st === 'SUCCESSFUL') {
+        txn.status = 'SUCCESS';
+        await txn.save();
+        if (txn.product === 'pro') {
+          const u = await User.findById(txn.userId);
+          if (u) { u.isPro = true; await u.save(); }
+        }
+      } else if (st === 'FAILED') {
+        txn.status = 'FAILED';
+        await txn.save();
+      }
+    } catch (e) {}
+  }
+  res.json({ transactionId: String(txn._id), status: txn.status });
+});
+
+// MTN MoMo webhook: auto-update payment status
+app.post('/api/webhook/mtn', async (req, res) => {
+  try {
+    const ref = req.headers['x-reference-id'] || req.body?.referenceId || req.body?.refId || req.query?.referenceId;
+    const status = (req.body?.status || '').toUpperCase();
+    if (!ref || !status) {
+      return res.status(400).json({ message: 'Missing reference or status' });
+    }
+    const txn = await Payment.findOne({ providerRef: String(ref) });
+    if (!txn) {
+      await FraudLog.create({ type: 'webhook_unknown_ref', message: 'Unknown providerRef', meta: { ref, body: req.body } });
+      return res.status(404).json({ message: 'Payment not found' });
+    }
+    if (status === 'SUCCESSFUL') {
+      txn.status = 'SUCCESS';
+      await txn.save();
+      if (txn.product === 'pro') {
+        const u = await User.findById(txn.userId);
+        if (u) { u.isPro = true; await u.save(); }
+      }
+    } else if (status === 'FAILED') {
+      txn.status = 'FAILED';
+      await txn.save();
+    }
+    res.json({ ok: true });
+  } catch (e) {
+    await FraudLog.create({ type: 'webhook_error', message: 'Webhook processing error', meta: { error: String(e && e.message || e) } });
+    res.status(500).json({ message: 'Server error' });
+  }
 });
 
 // RESOURCES
 app.get('/api/resources', async (req, res) => {
   const items = await Resource.find({}).lean();
-  res.json({ resources: items.map(r => ({ id: String(r._id), title: r.title, description: r.description, premium: r.premium })) });
+  res.json({
+    resources: items.map(r => ({
+      id: String(r._id),
+      title_en: r.title,
+      title_kiny: r.titleKiny || '',
+      type: r.type || 'PDF',
+      category: r.category || 'General',
+      isPremium: !!r.premium,
+      fileUrl: r.fileUrl || '',
+      thumbnail: r.thumbnail || '',
+      size: r.size || ''
+    }))
+  });
 });
 
 app.get('/api/resources/download/:id', async (req, res) => {
@@ -701,9 +994,11 @@ app.get('/api/resources/download/:id', async (req, res) => {
     const resource = await Resource.findById(req.params.id);
     if (!resource) return res.status(404).json({ message: 'Resource not found' });
     if (resource.premium && !user.isPro) return res.status(402).json({ message: 'Upgrade to Pro to download' });
-    res.setHeader('Content-Type', 'text/plain');
-    res.setHeader('Content-Disposition', `attachment; filename="${resource.title.replace(/\s+/g, '_')}.txt"`);
-    res.send(`${resource.title}\n\nThis is a demo resource file for ISHAMI.`);
+    const url = toDirectDownloadUrl(resource.fileUrl);
+    if (url) {
+      return res.redirect(url);
+    }
+    res.status(400).json({ message: 'No file URL set for resource' });
   } catch {
     return res.status(401).json({ message: 'Unauthorized' });
   }
@@ -753,8 +1048,15 @@ app.get('/api/leaderboard', async (req, res) => {
 
 // IREMBO
 app.post('/api/irembo/register', authMiddleware, async (req, res) => {
-  const application = await IremboApplication.create({ userId: req.user._id, ...req.body });
-  res.json({ application: { id: String(application._id), ...req.body, status: application.status, createdAt: application.createdAt } });
+  const txnId = String(req.body?.transactionId || '');
+  const txn = txnId ? await Payment.findById(txnId) : null;
+  if (!txn || String(txn.userId) !== String(req.user._id) || txn.status !== 'SUCCESS' || txn.amount !== 5500 || txn.product !== 'irembo') {
+    await FraudLog.create({ userId: req.user._id, type: 'register_without_payment', message: 'Irembo register blocked', meta: { txnId } });
+    return res.status(402).json({ message: 'Payment required' });
+  }
+  const application = await IremboApplication.create({ userId: req.user._id, fullName: req.body.fullName, nationalId: req.body.nationalId, phone: req.body.phone, email: req.body.email, language: req.body.language, testMode: req.body.testMode, district: req.body.district, testDate: req.body.testDate });
+  await Notification.create({ title: 'Irembo registration', body: `New application ${String(application._id)}`, segment: 'admins' });
+  res.json({ application: { id: String(application._id), fullName: application.fullName, nationalId: application.nationalId, phone: application.phone, email: application.email, language: application.language, testMode: application.testMode, district: application.district, testDate: application.testDate, status: application.status, createdAt: application.createdAt } });
 });
 
 // SIMULATION
@@ -1012,8 +1314,31 @@ app.get('/api/admin/payments', authMiddleware, adminOnly, async (req, res) => {
   const page = Number(req.query.page || 1);
   const limit = Number(req.query.limit || 50);
   const total = await Payment.countDocuments();
-  const items = await Payment.find({}).skip((page - 1) * limit).limit(limit).lean();
-  res.json({ page, limit, total, payments: items.map(p => ({ id: String(p._id), userId: String(p.userId), amount: p.amount, phone: p.phone, provider: p.provider, status: p.status, createdAt: p.createdAt })) });
+  const items = await Payment.find({}).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit).lean();
+  const userIds = items.map(p => p.userId).filter(Boolean);
+  const users = userIds.length ? await User.find({ _id: { $in: userIds } }).lean() : [];
+  const userMap = new Map(users.map(u => [String(u._id), u]));
+  const payments = items.map(p => {
+    const u = userMap.get(String(p.userId));
+    return {
+      id: String(p._id),
+      userId: String(p.userId),
+      username: u?.username || 'Unknown',
+      email: u?.email || null,
+      amount: Number(p.amount || 0),
+      phone: p.phone || null,
+      provider: String(p.provider || ''),
+      status: p.status || 'PENDING',
+      createdAt: p.createdAt,
+    };
+  });
+  res.json({ page, limit, total, payments });
+});
+
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error('Error middleware:', err?.stack || err);
+  res.status(500).json({ message: 'Server error' });
 });
 
 app.get('/api/admin/irembo', authMiddleware, adminOnly, async (req, res) => {
@@ -1043,15 +1368,25 @@ app.delete('/api/admin/resources/:resourceId', authMiddleware, adminOnly, async 
   res.json({ message: 'Deleted' });
 });
 
-app.post('/api/admin/notifications', authMiddleware, adminOnly, (req, res) => {
-  res.json({ message: 'Notification queued' });
+app.post('/api/admin/notifications', authMiddleware, adminOnly, async (req, res) => {
+  const n = await Notification.create({ title: String(req.body?.title || ''), body: String(req.body?.body || ''), segment: String(req.body?.segment || '') || 'all', scheduledAt: req.body?.scheduledAt ? new Date(req.body.scheduledAt) : undefined });
+  res.json({ notification: { id: String(n._id), title: n.title, body: n.body, segment: n.segment, scheduledAt: n.scheduledAt, createdAt: n.createdAt } });
 });
 
-app.get('/api/admin/fraud-logs', authMiddleware, adminOnly, (req, res) => {
+app.get('/api/admin/notifications', authMiddleware, adminOnly, async (req, res) => {
   const page = Number(req.query.page || 1);
   const limit = Number(req.query.limit || 50);
-  const start = (page - 1) * limit;
-  res.json({ page, limit, total: fraudLogs.length, logs: fraudLogs.slice(start, start + limit) });
+  const total = await Notification.countDocuments();
+  const items = await Notification.find({}).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit).lean();
+  res.json({ page, limit, total, notifications: items.map(n => ({ id: String(n._id), title: n.title, body: n.body, segment: n.segment, scheduledAt: n.scheduledAt, createdAt: n.createdAt })) });
+});
+
+app.get('/api/admin/fraud-logs', authMiddleware, adminOnly, async (req, res) => {
+  const page = Number(req.query.page || 1);
+  const limit = Number(req.query.limit || 50);
+  const total = await FraudLog.countDocuments();
+  const items = await FraudLog.find({}).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit).lean();
+  res.json({ page, limit, total, logs: items.map(l => ({ id: String(l._id), userId: String(l.userId || ''), type: l.type, message: l.message, meta: l.meta, createdAt: l.createdAt })) });
 });
 
 app.get('/api/admin/user-logs/:userId', authMiddleware, adminOnly, (req, res) => {

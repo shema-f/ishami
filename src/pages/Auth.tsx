@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { motion } from 'motion/react';
 import { Mail, Lock, User, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { auth as firebaseAuth } from '../lib/firebase';
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
 import { authAPI } from '../services/api';
 import { useNavigate } from 'react-router';
 
@@ -20,7 +22,7 @@ export default function Auth() {
   const [newPassword2, setNewPassword2] = useState('');
   const [forgotStatus, setForgotStatus] = useState('');
   
-  const { login, signup, updateUser, socialLogin, googleIdTokenLogin } = useAuth();
+  const { login, signup, updateUser, socialLogin, googleIdTokenLogin, firebaseLogin } = useAuth();
   const navigate = useNavigate();
   const API_BASE = (import.meta as any).env?.VITE_API_URL || 'http://localhost:5000';
   const GOOGLE_CLIENT_ID = (import.meta as any).env?.VITE_GOOGLE_CLIENT_ID || '921766633773-ggb4nlq294cvaetc8gpa5cadh6sokecu.apps.googleusercontent.com';
@@ -63,6 +65,28 @@ export default function Auth() {
         popup && popup.close();
       }
     }, 8000);
+  };
+
+  const handleGoogleFirebaseSignIn = async () => {
+    try {
+      setError('');
+      setLoading(true);
+      const provider = new GoogleAuthProvider();
+      const cred = await signInWithPopup(firebaseAuth, provider);
+      const oauthCred = GoogleAuthProvider.credentialFromResult(cred);
+      const idToken = oauthCred?.idToken;
+      if (!idToken) {
+        setError('Google sign-in did not return an ID token');
+        setLoading(false);
+        return;
+      }
+      await firebaseLogin(idToken);
+      navigate('/');
+    } catch (e: any) {
+      setError(e?.message || 'Google sign-in failed');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleGoogleGisSignIn = async () => {
@@ -133,7 +157,26 @@ export default function Auth() {
           return;
         }
         const isEmail = identifier.includes('@');
-        await signup(username, isEmail ? identifier : '', password, isEmail ? undefined : identifier);
+        try {
+          const check = await authAPI.checkIdentifier(identifier.trim());
+          if (check?.exists) {
+            setError('Account already exists. Please sign in.');
+            setIsSignIn(true);
+            setLoading(false);
+            return;
+          }
+        } catch {}
+        try {
+          await signup(username, isEmail ? identifier : '', password, isEmail ? undefined : identifier);
+        } catch (e: any) {
+          const msg = String(e?.message || '').toLowerCase();
+          if (msg.includes('account already exists')) {
+            setError('Account already exists. Please sign in.');
+            setIsSignIn(true);
+            return;
+          }
+          throw e;
+        }
       }
       navigate('/');
     } catch (err: any) {
@@ -441,7 +484,7 @@ export default function Auth() {
 
             <div className="grid grid-cols-2 gap-4">
               <button
-                onClick={() => handleGoogleGisSignIn()}
+                onClick={() => handleGoogleFirebaseSignIn()}
                 className="flex items-center justify-center space-x-2 py-3 border border-gray-200 dark:border-gray-700 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" className="w-5 h-5">

@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: ishami-backend
+    rootDir: server
+    env: node
+    buildCommand: npm install
+    startCommand: node index.js
+    autoDeploy: true
+    healthCheckPath: /
+    envVars:
+      - key: MONGODB_URI
+        sync: false
+      - key: MONGODB_DB
+        sync: false
+      - key: JWT_SECRET
+        sync: false

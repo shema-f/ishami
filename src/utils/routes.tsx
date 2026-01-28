@@ -8,6 +8,7 @@ import Simulation from "../pages/Simulation";
 import Resources from "../pages/Resources";
 import Leaderboard from "../pages/Leaderboard";
 import Auth from "../pages/Auth";
+import ResetPassword from "../pages/ResetPassword";
 import Irembo from "../pages/Irembo";
 import NotFound from "../pages/NotFound";
 

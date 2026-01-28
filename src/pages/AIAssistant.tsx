@@ -22,7 +22,13 @@ const suggestedPrompts = [
   "Nibwo buryo bwo gusiganwa?"
 ];
 
-const guardrailResponse = "Mwaramutse! I'm Moto-Sensei, your friendly Rwandan driving instructor. I can only help you with questions about Rwanda Traffic Rules and the Code de la Route. Please ask me something related to driving, traffic signs, or road safety! 🚗";
+const detectSentiment = (text: string): string => {
+  const lower = text.toLowerCase();
+  if (lower.match(/\b(stupid|hate|bad|useless|angry|ibi byawe|ntabwo|fuck|shit)\b/)) return 'angry';
+  if (lower.match(/\b(thanks|thank|great|good|awesome|wow|neza|cyane|murakoze)\b/)) return 'happy';
+  if (lower.match(/\b(hello|hi|hey|mwaramutse|mwiriwe|salut|boss|afande)\b/)) return 'saluting';
+  return 'neutral';
+};
 
 export default function AIAssistant() {
   const [messages, setMessages] = useState<Message[]>([
@@ -63,37 +69,6 @@ export default function AIAssistant() {
     setMessages(prev => [...prev, newMessage]);
   };
 
-  const getMockResponse = (question: string): string => {
-    const lowerQ = question.toLowerCase();
-    
-    // Check if question is off-topic
-    if (!lowerQ.includes('traffic') && !lowerQ.includes('road') && !lowerQ.includes('sign') && 
-        !lowerQ.includes('drive') && !lowerQ.includes('park') && !lowerQ.includes('speed') &&
-        !lowerQ.includes('umuhanda') && !lowerQ.includes('icyapa') && !lowerQ.includes('gutwara') &&
-        !lowerQ.includes('gusiganwa') && !lowerQ.includes('guhagarara')) {
-      return guardrailResponse;
-    }
-
-    // Mock responses for traffic-related questions
-    if (lowerQ.includes('red') || lowerQ.includes('umutuku') || lowerQ.includes('stop')) {
-      return "A red octagonal sign is a STOP sign (Icyapa cyo guhagarara). You must come to a complete stop before the white line or crosswalk, check for traffic, and proceed only when it's safe. Ni ngombwa guhagarara burundu!";
-    }
-    
-    if (lowerQ.includes('speed') || lowerQ.includes('umuvuduko') || lowerQ.includes('limit')) {
-      return "In Kigali city and urban areas, the speed limit is 50 km/h. On highways, it's 80-100 km/h depending on the road. Always watch for speed limit signs (Icyapa cy'umuvuduko). Remember: Umutekano urabanza!";
-    }
-    
-    if (lowerQ.includes('park') || lowerQ.includes('guhagarika')) {
-      return "When parking on a hill: Turn your wheels toward the curb if facing downhill, away from the curb if facing uphill. Always engage the parking brake (frein à main). Ntuzibagirwe gukoresha frein à main!";
-    }
-    
-    if (lowerQ.includes('overtake') || lowerQ.includes('gusiganwa')) {
-      return "Overtaking (gusiganwa) is only allowed when: 1) You have clear visibility, 2) The road marking permits it (no solid line), 3) You won't exceed the speed limit. Always signal before overtaking! Safety first - Umutekano ni ingenzi!";
-    }
-    
-    return "That's a great question about Rwanda traffic rules! Based on the Code de la Route Rwanda, I recommend checking the specific section in your study materials. Remember to always prioritize safety (umutekano) and follow all traffic signs (ibyapa by'umuhanda). Want to test your knowledge with a quiz?";
-  };
-
   const handleSend = async () => {
     if (!input.trim()) return;
 
@@ -114,10 +89,18 @@ export default function AIAssistant() {
     setInput('');
     setQuestionCount(prev => prev + 1);
 
+    // Prepare history (excluding initial greeting to maintain User-Model flow)
+    const history = messages.slice(1).map(msg => ({
+      role: msg.isUser ? 'user' : 'model',
+      content: msg.text
+    }));
+
     try {
-      const res = await aiAPI.askQuestion(user ? user.id : 'anonymous', input, questionCount + 1);
-      await simulateTyping({ text: res.text, image: res.image || null });
+      const sentiment = detectSentiment(input);
+      const res = await aiAPI.askAssistant(input, sentiment, history);
+      await simulateTyping({ text: res.text, image: null });
     } catch (e) {
+      console.error(e);
       await simulateTyping({ text: "Ndakumbuye igisubizo. Ongera ugerageze nyuma." });
     }
   };

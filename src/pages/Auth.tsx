@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { Mail, Lock, User, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
@@ -152,6 +152,52 @@ export default function Auth() {
       container.querySelector('div')?.dispatchEvent(new Event('click'));
     } catch (e: any) {
       setError(e?.message || 'Google sign-in failed');
+      setLoading(false);
+    }
+  };
+
+  const handleFacebookFirebaseSignIn = async () => {
+    console.log('Starting Facebook Sign-In...');
+    try {
+      setError('');
+      setLoading(true);
+      const provider = new FacebookAuthProvider();
+      
+      console.log('Opening popup...');
+      const cred = await signInWithPopup(firebaseAuth, provider);
+      console.log('Popup finished, got credential:', cred.user.uid);
+      
+      const oauthCred = FacebookAuthProvider.credentialFromResult(cred);
+      const accessToken = oauthCred?.accessToken;
+      
+      if (!accessToken) {
+        console.error('No Access token found in result');
+        setError('Facebook sign-in did not return an Access token');
+        setLoading(false);
+        return;
+      }
+      
+      // Note: Backend verification for Facebook token might be different or use the same firebaseLogin flow if it verifies ID token.
+      // Firebase client SDK handles the OAuth flow and signs in to Firebase.
+      // If we need to sync with our backend user, we might need to get the ID token from the User object.
+      const idToken = await cred.user.getIdToken();
+      
+      console.log('Exchange with backend...');
+      await firebaseLogin(idToken);
+      console.log('Login successful, navigating...');
+      navigate('/');
+    } catch (e: any) {
+      console.error('Facebook Sign-In Error:', e);
+      if (e?.code === 'auth/popup-blocked') {
+        setError('Popup was blocked. Please allow popups for this site.');
+      } else if (e?.code === 'auth/popup-closed-by-user') {
+        setError('Sign-in cancelled.');
+      } else if (e?.code === 'auth/account-exists-with-different-credential') {
+        setError('An account already exists with the same email address but different sign-in credentials. Sign in using a provider associated with this email address.');
+      } else {
+        setError(e?.message || 'Facebook sign-in failed');
+      }
+    } finally {
       setLoading(false);
     }
   };

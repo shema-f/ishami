@@ -12,11 +12,13 @@ import SibApiV3Sdk from 'sib-api-v3-sdk';
 import fs from 'fs';
 import path from 'path';
 import { getAccessToken, requestToPay, getRequestToPayStatus, normalizeMsisdn } from './services/momo.js';
+import { askAssistant } from './services/aiService.js';
 
 try {
   const here = path.resolve(process.cwd(), '.env');
   const parent = path.resolve(process.cwd(), '..', '.env');
-  const chosen = fs.existsSync(here) ? here : (fs.existsSync(parent) ? parent : null);
+  const serverEnv = path.resolve(process.cwd(), 'server', '.env');
+  const chosen = fs.existsSync(here) ? here : (fs.existsSync(serverEnv) ? serverEnv : (fs.existsSync(parent) ? parent : null));
   if (chosen) dotenv.config({ path: chosen });
 } catch {}
 const app = express();
@@ -201,6 +203,17 @@ const FraudLogSchema = new Schema({
 });
 FraudLogSchema.index({ createdAt: -1 });
 const FraudLog = model('FraudLog', FraudLogSchema);
+
+const AIInteractionSchema = new Schema({
+  userId: { type: Types.ObjectId, ref: 'User' },
+  prompt: { type: String, required: true },
+  response: { type: String, required: true },
+  sentiment: { type: String },
+  isPro: { type: Boolean, default: false },
+  createdAt: { type: Date, default: Date.now }
+});
+AIInteractionSchema.index({ userId: 1, createdAt: -1 });
+const AIInteraction = model('AIInteraction', AIInteractionSchema);
 
 async function seed() {
   const adminEmail = process.env.ADMIN_EMAIL || 'admin@ishami.rw';
@@ -604,6 +617,33 @@ app.post('/api/auth/reset', async (req, res) => {
   }
 });
 
+app.post('/api/ai/ask', authMiddleware, async (req, res) => {
+  try {
+    const { prompt, sentiment, history } = req.body;
+    const user = req.user;
+    
+    if (!prompt) {
+      return res.status(400).json({ message: 'Prompt is required' });
+    }
+
+    const response = await askAssistant(prompt, user.username || 'Mugenzi', sentiment, history);
+
+    // Save interaction
+    await AIInteraction.create({
+      userId: user._id,
+      prompt,
+      response,
+      sentiment,
+      isPro: user.isPro
+    });
+
+    res.json({ response, isPro: user.isPro });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
 // Social auth (simulated)
 app.post('/api/auth/social', async (req, res) => {
   const provider = String(req.body?.provider || '').toLowerCase();
@@ -852,8 +892,8 @@ app.post('/api/quiz/submit', authMiddleware, async (req, res) => {
   res.json({ message: 'Submitted', submission: { id: String(submission._id), userId: String(req.user._id), answers, score, totalQuestions, timeTakenSeconds, createdAt: submission.createdAt } });
 });
 
-// AI ASSISTANT (stub)
-app.post('/api/ai/ask', authMiddleware, async (req, res) => {
+// AI ASSISTANT (deprecated)
+app.post('/api/ai/ask-deprecated', authMiddleware, async (req, res) => {
   const { question = '' } = req.body || {};
   if (!question) return res.status(400).json({ message: 'Missing question' });
   const qLower = String(question).toLowerCase();

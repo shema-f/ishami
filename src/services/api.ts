@@ -194,11 +194,16 @@ export const aiAPI = {
    * Ask AI assistant a question
    * Backend endpoint: POST /api/ai/ask
    */
-  askQuestion: async (userId: string, question: string, questionCount: number) => {
-    return apiCall('/api/ai/ask', {
+  askAssistant: async (prompt: string, sentiment: string = 'neutral', history: Array<{ role: string, content: string }> = []) => {
+    const response = await apiCall('/api/ai/ask', {
       method: 'POST',
-      body: JSON.stringify({ userId, question, questionCount }),
+      body: JSON.stringify({ prompt, sentiment, history }),
     });
+    // Map backend response { response: string } to frontend expectation { text: string }
+    return {
+      text: response.response,
+      isPro: response.isPro
+    };
   },
 };
 

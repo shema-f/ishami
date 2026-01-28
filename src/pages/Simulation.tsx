@@ -1,6 +1,13 @@
+import { useState } from 'react';
 import { motion } from 'motion/react';
-import { Play, Gamepad2, Car, MapPin, TrendingUp, RotateCw } from 'lucide-react';
+import { Play, Gamepad2, Car, MapPin, TrendingUp, RotateCw, Bell } from 'lucide-react';
 import { ImageWithFallback } from '../components/figma/ImageWithFallback';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "../components/ui/dialog"
+import { Button } from "../components/ui/button"
+import { Input } from "../components/ui/input"
+import { Label } from "../components/ui/label"
+import { toast } from 'react-hot-toast';
+import { newsletterAPI } from '../services/api';
 
 const scenarios = [
   {
@@ -51,6 +58,25 @@ const scenarios = [
 ];
 
 export default function Simulation() {
+  const [notifyOpen, setNotifyOpen] = useState(false);
+  const [notifyEmail, setNotifyEmail] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleNotify = async () => {
+    if (!notifyEmail) return;
+    try {
+      setLoading(true);
+      await newsletterAPI.subscribe(notifyEmail);
+      toast.success('You have been added to the waitlist!');
+      setNotifyOpen(false);
+      setNotifyEmail('');
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to join waitlist');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen py-8 px-4">
       <div className="max-w-7xl mx-auto">

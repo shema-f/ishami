@@ -1,6 +1,10 @@
 import { useState } from 'react';
 import { motion } from 'motion/react';
 import { FileCheck, Phone, Mail, Calendar, MapPin, AlertCircle, CheckCircle2, Clock } from 'lucide-react';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "../components/ui/dialog"
+import { Button } from "../components/ui/button"
+import { Input } from "../components/ui/input"
+import { Label } from "../components/ui/label"
 import { useAuth } from '../contexts/AuthContext';
 import { iremboAPI, paymentAPI } from '../services/api';
 
@@ -25,6 +29,8 @@ export default function Irembo() {
   const [txnId, setTxnId] = useState<string | null>(null);
   const [paymentStatus, setPaymentStatus] = useState<'PENDING' | 'SUCCESS' | 'FAILED' | null>(null);
   const [paymentError, setPaymentError] = useState<string | null>(null);
+  const [showPaymentDialog, setShowPaymentDialog] = useState(false);
+  const [paymentPhone, setPaymentPhone] = useState('');
 
   const districts = [
     'Gasabo', 'Kicukiro', 'Nyarugenge', 'Bugesera', 'Gatsibo',
@@ -70,16 +76,24 @@ export default function Irembo() {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!validate()) return;
+    setPaymentPhone(formData.phone);
+    setShowPaymentDialog(true);
+  };
+
+  const handlePaymentConfirm = async () => {
+    setShowPaymentDialog(false);
     if (!user) return;
     try {
       setProcessing(true);
       setPaymentError(null);
-      const init = await paymentAPI.initiatePayment({ userId: user.id, amount: 5500, phone: formData.phone, provider: 'mtn', product: 'irembo' });
+      const init = await paymentAPI.initiatePayment({ userId: user.id, amount: 5500, phone: paymentPhone, provider: 'mtn', product: 'irembo' });
       setTxnId(init.transactionId);
       setPaymentStatus('PENDING');
+      
+      let finalStatus = 'PENDING';
       let tries = 0;
       await new Promise<void>((resolve) => {
         const iv = setInterval(async () => {
@@ -87,12 +101,26 @@ export default function Irembo() {
           try {
             const st = await paymentAPI.checkStatus(init.transactionId);
             setPaymentStatus(st.status);
-            if (st.status === 'SUCCESS') { clearInterval(iv); resolve(); }
-            if (st.status === 'FAILED' || tries > 40) { clearInterval(iv); resolve(); }
+            if (st.status === 'SUCCESS' || st.status === 'FAILED') {
+               finalStatus = st.status;
+               clearInterval(iv); 
+               resolve(); 
+            }
+            if (tries > 40) { 
+                finalStatus = 'TIMEOUT';
+                clearInterval(iv); 
+                resolve(); 
+            }
           } catch { clearInterval(iv); resolve(); }
         }, 3000);
       });
-      if (paymentStatus === 'FAILED') { setProcessing(false); setPaymentError('Payment failed'); return; }
+      
+      if (finalStatus !== 'SUCCESS') { 
+          setProcessing(false); 
+          setPaymentError(finalStatus === 'TIMEOUT' ? 'Payment timed out' : 'Payment failed'); 
+          return; 
+      }
+
       const reg = await iremboAPI.register({
         userId: user.id,
         fullName: formData.fullName,

@@ -8,7 +8,6 @@ import dotenv from 'dotenv';
 import { v4 as uuidv4 } from 'uuid';
 import * as quizSource from './data.js';
 import nodemailer from 'nodemailer';
-import SibApiV3Sdk from 'sib-api-v3-sdk';
 import fs from 'fs';
 import path from 'path';
 import { getAccessToken, requestToPay, getRequestToPayStatus, normalizeMsisdn } from './services/momo.js';
@@ -56,9 +55,19 @@ try {
       secure: String(process.env.SMTP_SECURE || 'false') === 'true',
       auth: process.env.SMTP_USER ? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS } : undefined,
     });
-    await transporter.verify().then(() => { mailer = transporter; }).catch(() => { mailer = null; });
+    mailer = transporter;
+    try {
+      await transporter.verify();
+      console.log('SMTP transporter verified');
+    } catch (e) {
+      console.warn('SMTP verify failed; will attempt to send anyway', e?.message || e);
+    }
+  } else {
+    console.warn('SMTP not configured: set SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM');
   }
-} catch {}
+} catch (e) {
+  console.error('SMTP init error', e?.message || e);
+}
 
 const UserSchema = new Schema({
   username: { type: String, required: true },
@@ -341,16 +350,7 @@ async function seed() {
   }
 }
 
-let brevoApi = null;
-let brevoTransactional = null;
-try {
-  if (process.env.BREVO_API_KEY) {
-    const defaultClient = SibApiV3Sdk.ApiClient.instance;
-    defaultClient.authentications['api-key'].apiKey = process.env.BREVO_API_KEY;
-    brevoApi = new SibApiV3Sdk.EmailCampaignsApi();
-    brevoTransactional = new SibApiV3Sdk.TransactionalEmailsApi();
-  }
-} catch {}
+// Brevo removed: using Nodemailer SMTP only
 await Promise.all([
   User.syncIndexes(),
   Question.syncIndexes(),
@@ -446,7 +446,7 @@ app.post('/api/auth/signup', async (req, res) => {
     // Send welcome email
     let welcomeSent = false;
     try {
-      if (mailer && email) {
+      if (email) {
         console.log(`Attempting to send welcome email to ${email}...`);
         const subject = 'Welcome to ISHAMI - Rwanda Traffic Rules';
         const html = `
@@ -466,17 +466,16 @@ app.post('/api/auth/signup', async (req, res) => {
             </div>
           </div>
         `;
-        
-        await mailer.sendMail({
-          from: process.env.SMTP_FROM || '"ISHAMI" <no-reply@ishami.rw>',
-          to: email,
-          subject,
-          html
-        });
-        console.log(`Welcome email sent successfully to ${email}`);
-        welcomeSent = true;
+        const from = process.env.SMTP_FROM || '"ISHAMI" <no-reply@ishami.rw>';
+        if (mailer) {
+          await mailer.sendMail({ from, to: email, subject, html, sender: process.env.SMTP_USER, envelope: { from: process.env.SMTP_USER, to: email } });
+          console.log(`Welcome email (SMTP) sent successfully to ${email}`);
+          welcomeSent = true;
+        } else {
+          console.log('Welcome email skipped: SMTP not configured');
+        }
       } else {
-        console.log('Welcome email skipped: No mailer configured or no email provided', { hasMailer: !!mailer, hasEmail: !!email });
+        console.log('Welcome email skipped: No email provided');
       }
     } catch (err) {
       console.error('Failed to send welcome email:', err);
@@ -561,7 +560,7 @@ app.post('/api/auth/forgot', async (req, res) => {
       const origin = process.env.FRONTEND_URL || 'http://localhost:3000';
       const resetUrl = `${origin}/reset?token=${encodeURIComponent(token)}`;
       console.log(`Processing forgot password for ${user.email} (ID: ${user._id})`);
-      if (user.email && mailer) {
+      if (user.email) {
         try {
           const subject = 'Reset your password - ISHAMI';
           const html = `
@@ -581,23 +580,24 @@ app.post('/api/auth/forgot', async (req, res) => {
               </div>
             </div>
           `;
-          await mailer.sendMail({ 
-            from: process.env.SMTP_FROM || '"ISHAMI" <no-reply@ishami.rw>', 
-            to: user.email, 
-            subject, 
-            html 
-          });
-          sent = true;
-          console.log(`Reset email sent to ${user.email}`);
+          const from = process.env.SMTP_FROM || '"ISHAMI" <no-reply@ishami.rw>';
+          if (mailer) {
+            await mailer.sendMail({ from, to: user.email, subject, html, sender: process.env.SMTP_USER, envelope: { from: process.env.SMTP_USER, to: user.email } });
+            sent = true;
+            console.log(`Reset email (SMTP) sent to ${user.email}`);
+          } else {
+            console.log('Reset email skipped: No mail provider configured', { hasMailer: !!mailer });
+          }
         } catch (e) {
           console.error('Failed to send reset email:', e);
         }
       } else {
-        console.log('Reset email skipped: No mailer or user has no email', { hasMailer: !!mailer, hasEmail: !!user.email });
+        console.log('Reset email skipped: No email on user profile');
       }
     }
     res.json({ success: true, sent });
-  } catch {
+  } catch (e) {
+    console.error('Forgot password error:', e?.stack || e);
     res.status(500).json({ message: 'Server error' });
   }
 });
@@ -1238,7 +1238,7 @@ app.post('/api/newsletter/subscribe', async (req, res) => {
     const existing = await NewsletterSubscriber.findOne({ email });
     if (existing) return res.json({ success: true, subscribed: true });
     await NewsletterSubscriber.create({ email });
-    const brandName = process.env.BREVO_SENDER_NAME || 'ISHAMI';
+    const brandName = process.env.BRAND_NAME || 'ISHAMI';
     const from = process.env.SMTP_FROM || `${brandName} <no-reply@ishami.local>`;
     let logo = process.env.BRAND_LOGO_URL || '';
     if (!logo) {
@@ -1257,16 +1257,13 @@ app.post('/api/newsletter/subscribe', async (req, res) => {
     const html = `<!doctype html><html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width"/><title>${brandName}</title></head><body style="margin:0;padding:0;background:#f7f7f7;font-family:Arial,Helvetica,sans-serif"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f7f7f7"><tr><td align="center"><table role="presentation" width="600" cellspacing="0" cellpadding="0" style="background:#ffffff;margin:24px;border-radius:12px;overflow:hidden;border:1px solid #e6e6e6"><tr><td style="background:${primary};padding:24px" align="center"><img src="${logo}" alt="Logo" width="64" height="64" style="display:block;border-radius:12px"/></td></tr><tr><td style="padding:24px"><h1 style="margin:0 0 12px 0;color:#111111;font-size:20px">Murakaza neza kuri ${brandName}</h1><p style="margin:0 0 16px 0;color:#444444;font-size:14px;line-height:1.6">Urakoze kwiyandikisha ku makuru yacu. Tuzajya kugutumira amakuru agezweho ku mategeko y'umuhanda, inama zo gutsinda ikizamini, n'ibindi byiza.</p><p style="margin:0 0 16px 0;color:#444444;font-size:14px;line-height:1.6">Inama: Koresha neza umuhanda tugeraneyo #Gerayo Amahoro</p><a href="${site}" style="display:inline-block;background:${primary};color:#ffffff;text-decoration:none;padding:10px 16px;border-radius:8px;font-size:14px">Sura urubuga</a></td></tr><tr><td style="padding:16px;text-align:center;color:#888888;font-size:12px">© ${new Date().getFullYear()} ${brandName}. Uramutse wifuza guhagarika, bimenyeshe kuri iyi email.</td></tr></table></td></tr></table></body></html>`;
     try {
       if (mailer) {
-        await mailer.sendMail({ from, to: email, subject, html });
-      } else if (brevoTransactional) {
-        const sendSmtpEmail = new SibApiV3Sdk.SendSmtpEmail();
-        sendSmtpEmail.subject = subject;
-        sendSmtpEmail.htmlContent = html;
-        sendSmtpEmail.sender = { name: brandName, email: from.replace(/.*<([^>]+)>.*/, '$1') };
-        sendSmtpEmail.to = [{ email }];
-        await brevoTransactional.sendTransacEmail(sendSmtpEmail);
+        await mailer.sendMail({ from, to: email, subject, html, sender: process.env.SMTP_USER, envelope: { from: process.env.SMTP_USER, to: email } });
+      } else {
+        console.warn('Newsletter subscribe email skipped: SMTP not configured');
       }
-    } catch {}
+    } catch (e) {
+      console.error('Newsletter subscribe email failed:', e?.message || e);
+    }
     res.json({ success: true, subscribed: true });
   } catch (e) {
     res.status(500).json({ message: 'Server error' });
@@ -1318,46 +1315,15 @@ app.get('/api/admin/newsletter/campaigns', authMiddleware, adminOnly, async (req
 app.post('/api/admin/newsletter/send', authMiddleware, adminOnly, async (req, res) => {
   const subject = String(req.body?.subject || '').trim();
   const body = String(req.body?.body || '').trim();
-  const provider = String(req.body?.provider || '').trim().toLowerCase();
-  const listIdsBody = Array.isArray(req.body?.listIds) ? req.body.listIds : undefined;
   if (!subject || !body) return res.status(400).json({ message: 'Missing fields' });
+  if (!mailer) return res.status(500).json({ message: 'SMTP not configured' });
   const subscribers = await NewsletterSubscriber.find({ status: 'SUBSCRIBED' }).lean();
-  if ((provider === 'brevo' || brevoApi) && process.env.BREVO_API_KEY) {
-    try {
-      const senderName = process.env.BREVO_SENDER_NAME || 'ISHAMI';
-      const senderEmail = process.env.BREVO_SENDER_EMAIL || 'no-reply@ishami.local';
-      const listIdsEnv = (process.env.BREVO_LIST_IDS || '').split(',').map(s => Number(s.trim())).filter(n => !Number.isNaN(n));
-      const recipients = listIdsBody && listIdsBody.length ? { listIds: listIdsBody } : (listIdsEnv.length ? { listIds: listIdsEnv } : undefined);
-      if (!recipients) {
-        const campaign = await NewsletterCampaign.create({ subject, body, status: 'SENT', recipientsCount: subscribers.length, deliveredCount: subscribers.length, failedCount: 0, sentAt: new Date() });
-        return res.json({ campaign: { id: String(campaign._id), subject: campaign.subject, status: campaign.status, recipientsCount: campaign.recipientsCount, deliveredCount: campaign.deliveredCount, failedCount: campaign.failedCount, sentAt: campaign.sentAt } });
-      }
-      const emailCampaigns = new SibApiV3Sdk.CreateEmailCampaign();
-      emailCampaigns.name = `ISHAMI ${new Date().toISOString()}`;
-      emailCampaigns.subject = subject;
-      emailCampaigns.sender = { name: senderName, email: senderEmail };
-      emailCampaigns.type = 'classic';
-      emailCampaigns.htmlContent = body;
-      emailCampaigns.recipients = recipients;
-      const data = await brevoApi.createEmailCampaign(emailCampaigns);
-      const totalRecipients = recipients.listIds?.length ? recipients.listIds.length : subscribers.length;
-      const campaign = await NewsletterCampaign.create({ subject, body, status: 'QUEUED', recipientsCount: totalRecipients, deliveredCount: 0, failedCount: 0, sentAt: new Date() });
-      return res.json({ campaign: { id: String(campaign._id), subject: campaign.subject, status: campaign.status, recipientsCount: campaign.recipientsCount, deliveredCount: campaign.deliveredCount, failedCount: campaign.failedCount, sentAt: campaign.sentAt }, provider: 'brevo', data });
-    } catch {
-      const campaign = await NewsletterCampaign.create({ subject, body, status: 'FAILED', recipientsCount: subscribers.length, deliveredCount: 0, failedCount: subscribers.length, sentAt: new Date() });
-      return res.status(500).json({ campaign: { id: String(campaign._id), subject: campaign.subject, status: campaign.status }, message: 'Brevo error' });
-    }
-  }
-  if (!mailer) {
-    const campaign = await NewsletterCampaign.create({ subject, body, status: 'SENT', recipientsCount: subscribers.length, deliveredCount: subscribers.length, failedCount: 0, sentAt: new Date() });
-    return res.json({ campaign: { id: String(campaign._id), subject: campaign.subject, status: campaign.status, recipientsCount: campaign.recipientsCount, deliveredCount: campaign.deliveredCount, failedCount: campaign.failedCount, sentAt: campaign.sentAt } });
-  }
   const from = process.env.SMTP_FROM || 'ISHAMI <no-reply@ishami.local>';
   let delivered = 0;
   let failed = 0;
   for (const s of subscribers) {
     try {
-      await mailer.sendMail({ from, to: s.email, subject, html: body });
+      await mailer.sendMail({ from, to: s.email, subject, html: body, sender: process.env.SMTP_USER, envelope: { from: process.env.SMTP_USER, to: s.email } });
       delivered++;
     } catch {
       failed++;
@@ -1375,7 +1341,7 @@ app.post('/api/admin/newsletter/preview', authMiddleware, adminOnly, async (req,
   if (!mailer) return res.json({ success: true });
   try {
     const from = process.env.SMTP_FROM || 'ISHAMI <no-reply@ishami.local>';
-    await mailer.sendMail({ from, to: email, subject, html: body });
+    await mailer.sendMail({ from, to: email, subject, html: body, sender: process.env.SMTP_USER, envelope: { from: process.env.SMTP_USER, to: email } });
     res.json({ success: true });
   } catch {
     res.status(500).json({ message: 'Failed to send' });

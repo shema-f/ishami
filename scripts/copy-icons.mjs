@@ -3,7 +3,7 @@ import { resolve } from 'path';
 
 const root = process.cwd();
 const srcDir = resolve(root, 'src', 'favicon_io');
-const outDir = resolve(root, 'dist');
+const outDir = resolve(root, 'build');
 
 function ensureDir(dir) {
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true });

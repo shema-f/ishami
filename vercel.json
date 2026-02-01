@@ -1,6 +1,6 @@
 {
   "buildCommand": "npm run build && node scripts/copy-icons.mjs",
-  "outputDirectory": "dist",
+  "outputDirectory": "build",
   "rewrites": [
     { "source": "/assets/(.*)", "destination": "/assets/$1" },
     { "source": "/(.*)", "destination": "/index.html" }

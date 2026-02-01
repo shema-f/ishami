@@ -45,6 +45,8 @@ export default function AIAssistant() {
   const [showPaywall, setShowPaywall] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { user } = useAuth();
+  const [isLoading, setIsLoading] = useState(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -53,6 +55,11 @@ export default function AIAssistant() {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+  useEffect(() => {
+    return () => {
+      abortControllerRef.current?.abort();
+    };
+  }, []);
 
   const simulateTyping = async (response: { text: string; image?: string | null }) => {
     setIsTyping(true);
@@ -71,42 +78,48 @@ export default function AIAssistant() {
 
   const handleSend = async () => {
     if (!input.trim()) return;
-
-    // Check if user is Pro or within free limit
     if (!user?.isPro && questionCount >= 5) {
       setShowPaywall(true);
       return;
     }
-
-    const userMessage: Message = {
-      id: messages.length + 1,
-      text: input,
-      isUser: true,
-      timestamp: new Date()
-    };
-
-    setMessages(prev => [...prev, userMessage]);
+    abortControllerRef.current?.abort();
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+    const now = new Date();
+    setMessages(prev => [...prev, { id: prev.length + 1, text: input, isUser: true, timestamp: now }]);
+    const sentiment = detectSentiment(input);
     setInput('');
     setQuestionCount(prev => prev + 1);
-
-    // Prepare history (excluding initial greeting to maintain User-Model flow)
-    const history = messages.slice(1).map(msg => ({
+    setIsLoading(true);
+    const startIndex = Math.max(1, messages.length - 10);
+    const history = messages.slice(startIndex).map(msg => ({
       role: msg.isUser ? 'user' : 'model',
       content: msg.text
     }));
-
     try {
-      const sentiment = detectSentiment(input);
-      const res = await aiAPI.askAssistant(input, sentiment, history);
+      const res = await aiAPI.askAssistant(input, sentiment, history, controller.signal);
       await simulateTyping({ text: res.text, image: null });
-    } catch (e) {
-      console.error(e);
-      await simulateTyping({ text: "Ndakumbuye igisubizo. Ongera ugerageze nyuma." });
+    } catch (e: any) {
+      if (e?.name === 'AbortError') return;
+      const m = String(e?.message || '');
+      const rateLimited = /429/.test(m) || /rate limit/i.test(m);
+      const text = rateLimited ? "Wasabye byinshi icyarimwe. Ongeza gutegereza hanyuma wongere. #GerayoAmahoro" : "Seriveri ifite ikibazo. Ongera ugerageze nyuma y'akanya. #GerayoAmahoro";
+      await simulateTyping({ text, image: null });
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const handlePromptClick = (prompt: string) => {
     setInput(prompt);
+  };
+
+  const shareToWhatsApp = (messageText: string) => {
+    const appLink = "https://ishami.rw";
+    const fullText = `🧑🏿‍🏫 *Inama ya Moto-Sensei (Ishami.rw):*\n\n${messageText}\n\n--- \n📍 *Koresha Ishami App nawe utsinde ikizamini:* ${appLink}`;
+    const encodedMessage = encodeURIComponent(fullText);
+    const whatsappUrl = `https://wa.me/?text=${encodedMessage}`;
+    window.open(whatsappUrl, '_blank');
   };
 
   return (
@@ -196,6 +209,17 @@ export default function AIAssistant() {
                       {message.timestamp.toLocaleTimeString()}
                     </p>
                   </div>
+                  {!message.isUser && (
+                    <button
+                      onClick={() => shareToWhatsApp(message.text)}
+                      className="flex items-center space-x-2 text-green-600 hover:text-green-700 font-medium text-sm mt-2"
+                    >
+                      <div className="bg-green-100 p-1.5 rounded-full">
+                        <MessageCircle className="w-4 h-4" />
+                      </div>
+                      <span>Sangiza kuri WhatsApp</span>
+                    </button>
+                  )}
                 </div>
               </motion.div>
             ))}

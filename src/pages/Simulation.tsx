@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { motion } from 'motion/react';
-import { Play, Gamepad2, Car, MapPin, TrendingUp, RotateCw, Bell } from 'lucide-react';
+import { Play, Gamepad2, Car, MapPin, TrendingUp, RotateCw, Bell, GitBranch } from 'lucide-react';
 import { ImageWithFallback } from '../components/figma/ImageWithFallback';
+import simulationVideo from '../assets/simulation.mp4';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "../components/ui/dialog"
 import { Button } from "../components/ui/button"
 import { Input } from "../components/ui/input"
@@ -54,6 +55,15 @@ const scenarios = [
     icon: <TrendingUp className="w-6 h-6" />,
     difficulty: "Advanced",
     status: "coming-soon"
+  },
+  {
+    id: 6,
+    title: "T-Cross Scenario",
+    titleKiny: "Ihuriro ry'Umuhanda T",
+    description: "Master the rules of priority and turning at T-intersections",
+    icon: <GitBranch className="w-6 h-6" />,
+    difficulty: "Intermediate",
+    status: "coming-soon"
   }
 ];
 
@@ -86,12 +96,16 @@ export default function Simulation() {
           animate={{ opacity: 1, y: 0 }}
           className="relative mb-12 rounded-3xl overflow-hidden shadow-2xl"
         >
-          {/* Background Image/Video */}
+          {/* Background Video */}
           <div className="relative h-[500px]">
-            <ImageWithFallback
-              src="https://images.unsplash.com/photo-1677522375375-c035e66971b3?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxjeWJlcnB1bmslMjBjYXIlMjAzZCUyMG5lb258ZW58MXx8fHwxNzY0MzYzNTIzfDA&ixlib=rb-4.1.0&q=80&w=1080"
-              alt="Cyberpunk 3D car driving simulation"
+            <video
+              src={simulationVideo}
               className="w-full h-full object-cover"
+              autoPlay
+              muted
+              loop
+              playsInline
+              aria-label="3D Driving Simulation Background"
             />
             
             {/* Overlay with Glassmorphism */}
@@ -121,7 +135,7 @@ export default function Simulation() {
                 <div className="flex flex-col items-center gap-4">
                   <div className="inline-flex items-center space-x-2 px-6 py-3 bg-gradient-to-r from-[#00A3AD] to-[#008891] rounded-full">
                     <Play className="w-5 h-5 text-white animate-pulse" />
-                    <span className="text-white">Launching December 2024</span>
+                    <span className="text-white">Launching December 2026</span>
                   </div>
 
                   <Dialog open={notifyOpen} onOpenChange={setNotifyOpen}>
@@ -179,22 +193,7 @@ export default function Simulation() {
             realistic driving scenarios directly in your browser. Each scenario will be loaded dynamically 
             and integrated seamlessly into the ISHAMI platform.
           </p>
-          <div className="grid md:grid-cols-2 gap-4">
-            <div className="bg-white/50 dark:bg-gray-800/50 rounded-xl p-4">
-              <h4 className="text-gray-900 dark:text-white mb-2">For Developers</h4>
-              <p className="text-gray-600 dark:text-gray-400 text-sm">
-                Unity scenarios will be embedded using iframe or direct WebGL integration. 
-                Backend API endpoints will handle scenario selection and score tracking.
-              </p>
-            </div>
-            <div className="bg-white/50 dark:bg-gray-800/50 rounded-xl p-4">
-              <h4 className="text-gray-900 dark:text-white mb-2">Score Tracking</h4>
-              <p className="text-gray-600 dark:text-gray-400 text-sm">
-                POST to <code className="bg-gray-200 dark:bg-gray-700 px-2 py-1 rounded">/api/simulation/submit</code> 
-                with userId, scenarioId, score, and mistakes for leaderboard integration.
-              </p>
-            </div>
-          </div>
+       
         </motion.div>
 
         {/* Scenarios Grid */}

@@ -13,7 +13,10 @@ export default function Root() {
     const handler = (e: any) => {
       e.preventDefault();
       setDeferredPrompt(e);
-      setShowInstall(true);
+      const hasSeen = localStorage.getItem('ishami_install_prompt_seen');
+      if (!hasSeen) {
+        setShowInstall(true);
+      }
     };
     window.addEventListener('beforeinstallprompt', handler);
     window.addEventListener('appinstalled', () => setInstalled(true));
@@ -30,7 +33,13 @@ export default function Root() {
     const { outcome } = await deferredPrompt.userChoice;
     if (outcome === 'accepted') {
       setShowInstall(false);
+      localStorage.setItem('ishami_install_prompt_seen', 'true');
     }
+  };
+
+  const handleDismiss = () => {
+    setShowInstall(false);
+    localStorage.setItem('ishami_install_prompt_seen', 'true');
   };
 
   return (
@@ -43,22 +52,39 @@ export default function Root() {
 
       <AnimatePresence>
         {!installed && showInstall && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed bottom-6 right-6 z-50">
-            <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="w-[360px] bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 p-4">
-              <div className="flex items-center space-x-3 mb-3">
-                <img src="/src/favicon_io/android-chrome-192x192.png" alt="ISHAMI" className="w-8 h-8 rounded" />
-                <div>
-                  <p className="text-gray-900 dark:text-white">Install ISHAMI</p>
-                  <p className="text-xs text-gray-500">Install as an app on your phone or desktop</p>
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }} 
+              animate={{ scale: 1, opacity: 1 }} 
+              exit={{ scale: 0.9, opacity: 0 }} 
+              className="w-full max-w-sm bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden"
+            >
+              <div className="p-6 text-center">
+                <div className="mx-auto w-16 h-16 bg-gradient-to-br from-[#00A3AD] to-[#008891] rounded-2xl flex items-center justify-center mb-4 shadow-lg shadow-[#00A3AD]/30">
+                  <img src="/src/favicon_io/android-chrome-192x192.png" alt="ISHAMI" className="w-12 h-12 rounded-xl" />
+                </div>
+                <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">Install ISHAMI App</h3>
+                <p className="text-gray-600 dark:text-gray-400 mb-6">
+                  Get the best experience by installing our app on your device. Works offline!
+                </p>
+                
+                <div className="space-y-3">
+                  <button 
+                    onClick={installApp} 
+                    className="w-full py-3 bg-gradient-to-r from-[#00A3AD] to-[#008891] text-white rounded-xl font-medium shadow-lg hover:shadow-[#00A3AD]/50 transition-all"
+                  >
+                    Install Now
+                  </button>
+                  <button 
+                    onClick={handleDismiss} 
+                    className="w-full py-3 bg-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 font-medium transition-colors"
+                  >
+                    Maybe Later
+                  </button>
                 </div>
               </div>
-              <div className="flex space-x-3">
-                <button onClick={installApp} className="flex-1 px-4 py-2 bg-gradient-to-r from-[#00A3AD] to-[#008891] text-white rounded-xl">Install App</button>
-                <button onClick={() => setShowInstall(false)} className="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-xl">Later</button>
-              </div>
-              <div className="mt-2 text-xs text-gray-500">Works on mobile and desktop (Chrome/Edge)</div>
             </motion.div>
-          </motion.div>
+          </div>
         )}
       </AnimatePresence>
     </div>

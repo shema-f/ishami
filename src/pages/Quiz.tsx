@@ -4,6 +4,14 @@ import { Clock, Award, Zap, CheckCircle, XCircle, Sparkles } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router';
 import { quizAPI, paymentAPI } from '../services/api';
+const quizImages: Record<string, any> = import.meta.glob('../assets/*.png', { eager: true });
+const resolveQuizImage = (idx: number) => {
+  const n = Math.min(idx + 1, 20);
+  const key1 = `../assets/quiz${n}.png`;
+  const key2 = `../assets/quiz ${n}.png`; // some files may contain a space (e.g., "quiz 17.png")
+  const mod = (quizImages[key1] as any) || (quizImages[key2] as any);
+  return typeof mod === 'string' ? mod : mod?.default || '';
+};
 
 interface QuizQuestion {
   id: string;
@@ -43,6 +51,7 @@ export default function Quiz() {
   const [txnId, setTxnId] = useState<string | null>(null);
   const [paymentStatus, setPaymentStatus] = useState<'PENDING' | 'SUCCESS' | 'FAILED' | null>(null);
   const [paymentError, setPaymentError] = useState<string | null>(null);
+  const [countedQuestions, setCountedQuestions] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (timeLeft > 0 && !quizCompleted) {
@@ -97,7 +106,15 @@ export default function Quiz() {
     setAnswered(true);
 
     if (questions[currentQuestion].options[optionIndex].isCorrect) {
-      setScore(score + 1);
+      const qid = questions[currentQuestion].id;
+      if (!countedQuestions.has(qid)) {
+        setScore(prev => prev + 1);
+        setCountedQuestions(prev => {
+          const next = new Set(prev);
+          next.add(qid);
+          return next;
+        });
+      }
     }
 
     const q = questions[currentQuestion];
@@ -226,25 +243,29 @@ export default function Quiz() {
       <div className="font-montserrat min-h-screen py-8 px-4">
         <div className="max-w-7xl mx-auto">
           <h1 className="text-gray-900 dark:text-white mb-6">Hitamo Ikizamini</h1>
-          <p className="text-gray-600 dark:text-gray-400 mb-8">Buri kizamini kigizwe n'ibibazo 20. Ifoto izashyirwa hano.</p>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          <p className="text-gray-600 dark:text-gray-400 mb-8">Buri kizamini kigizwe n'ibibazo 20. </p>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {quizzes.map((q, idx) => (
               <motion.div
                 key={q.id}
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden shadow flex flex-col h-[320px]"
+                className="relative bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden shadow flex flex-col h-[220px]"
               >
                 <img
-                  src={`/src/assets/quiz${Math.min(idx + 1, 20)}.png`}
+                  src={resolveQuizImage(idx)}
                   alt="Quiz"
-                  className="w-full h-32 sm:h-36 md:h-40 object-cover"
+                  className="w-full h-24 sm:h-28 object-cover"
                 />
-                <div className="p-4 flex flex-col flex-1">
-                  <h3 className="text-gray-900 dark:text-white mb-1 line-clamp-2">{q.title}</h3>
-                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">{q.category}</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-500">Ibibazo: {q.questionCount}</p>
-                  <button onClick={() => startQuiz(q)} className="mt-auto w-full px-4 py-2 bg-gradient-to-r from-[#00A3AD] to-[#008891] text-white rounded-xl">Tangira</button>
+                <div className="p-3 flex flex-col flex-1">
+                  <h3 className="text-gray-900 dark:text-white mb-1 text-sm leading-snug">Ikizami</h3>
+                  <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">{q.category}</p>
+                  <p className="text-[11px] text-gray-500 dark:text-gray-500">Ibibazo: {q.questionCount}</p>
+                  <button onClick={() => startQuiz(q)} className="mt-auto w-full px-3 py-2 bg-gradient-to-r from-[#00A3AD] to-[#008891] text-white rounded-xl text-xs">Tangira</button>
+                </div>
+                <div className="absolute top-2 right-2 bg-[#00A3AD]/10 text-[#00A3AD] rounded-full px-3 py-1 text-xs flex items-center gap-2">
+                  <span>🧑‍🏫</span>
+                  <span>Moto‑Sensei</span>
                 </div>
               </motion.div>
             ))}
@@ -314,11 +335,15 @@ export default function Quiz() {
             initial={{ opacity: 0, x: 50 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -50 }}
-            className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl rounded-3xl p-8 border border-gray-200/20 dark:border-gray-700/20 shadow-2xl"
+            className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl rounded-3xl p-6 border border-gray-200/20 dark:border-gray-700/20 shadow-2xl"
           >
             {/* Category Badge */}
             <div className="inline-flex items-center space-x-2 px-4 py-2 bg-[#00A3AD]/10 dark:bg-[#00A3AD]/20 rounded-full mb-6">
               <span className="text-sm text-[#00A3AD]">{selectedQuiz.category}</span>
+            </div>
+            <div className="flex items-center gap-3 mb-4 bg-[#00A3AD]/10 dark:bg-[#00A3AD]/20 rounded-xl p-3">
+              <div className="w-10 h-10 rounded-full bg-white dark:bg-gray-700 flex items-center justify-center text-lg">🧑‍🏫</div>
+              <div className="text-sm text-gray-900 dark:text-white">Ndi Moto‑Sensei. Twige hamwe kandi twishimye. #GerayoAmahoro 🚦</div>
             </div>
 
             {/* Image (if provided) */}
@@ -330,7 +355,7 @@ export default function Quiz() {
 
             {/* Question */}
             <div className="mb-8">
-              <p className="text-gray-900 dark:text-white text-lg">
+              <p className="text-gray-900 dark:text-white text-base">
                 {question.question}
               </p>
             </div>
@@ -345,11 +370,11 @@ export default function Quiz() {
                 return (
                   <motion.button
                     key={index}
-                    whileHover={{ scale: answered ? 1 : 1.02 }}
-                    whileTap={{ scale: answered ? 1 : 0.98 }}
+                    whileHover={{ scale: answered ? 1 : 1.01 }}
+                    whileTap={{ scale: answered ? 1 : 0.99 }}
                     onClick={() => handleAnswerSelect(index)}
                     disabled={answered}
-                    className={`w-full p-6 rounded-xl border-2 transition-all duration-300 text-left ${
+                    className={`w-full p-4 rounded-xl border-2 transition-all duration-300 text-left ${
                       showResult
                         ? isCorrect
                           ? 'bg-green-50 dark:bg-green-900/20 border-green-500'
@@ -359,7 +384,7 @@ export default function Quiz() {
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex-1">
-                        <p className="text-gray-900 dark:text-white mb-1">
+                        <p className="text-gray-900 dark:text-white mb-1 text-sm">
                           {option.text}
                         </p>
                       </div>
@@ -387,14 +412,14 @@ export default function Quiz() {
               <button
                 onClick={handlePrev}
                 disabled={currentQuestion === 0}
-                className={`px-6 py-4 rounded-xl border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-all ${currentQuestion === 0 ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-50 dark:hover:bg-gray-600'}`}
+                className={`px-5 py-3 rounded-xl border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-all text-sm ${currentQuestion === 0 ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-50 dark:hover:bg-gray-600'}`}
               >
                 Previous
               </button>
               <button
                 onClick={handleNext}
                 disabled={!answered}
-                className={`flex-1 px-8 py-4 rounded-xl transition-all duration-300 ${!answered ? 'opacity-50 cursor-not-allowed bg-gray-300 dark:bg-gray-600 text-gray-700 dark:text-gray-300' : 'bg-gradient-to-r from-[#00A3AD] to-[#008891] text-white hover:shadow-xl hover:shadow-[#00A3AD]/50'}`}
+                className={`flex-1 px-6 py-3 rounded-xl transition-all duration-300 text-sm ${!answered ? 'opacity-50 cursor-not-allowed bg-gray-300 dark:bg-gray-600 text-gray-700 dark:text-gray-300' : 'bg-gradient-to-r from-[#00A3AD] to-[#008891] text-white hover:shadow-xl hover:shadow-[#00A3AD]/50'}`}
               >
                 {currentQuestion < questions.length - 1 ? 'Next Question' : 'Finish Quiz'}
               </button>

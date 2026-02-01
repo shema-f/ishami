@@ -12,6 +12,7 @@ import fs from 'fs';
 import path from 'path';
 import { getAccessToken, requestToPay, getRequestToPayStatus, normalizeMsisdn } from './services/momo.js';
 import { askAssistant } from './services/aiService.js';
+import { AIInteraction } from './models/AIInteraction.js';
 
 try {
   const here = path.resolve(process.cwd(), '.env');
@@ -213,16 +214,7 @@ const FraudLogSchema = new Schema({
 FraudLogSchema.index({ createdAt: -1 });
 const FraudLog = model('FraudLog', FraudLogSchema);
 
-const AIInteractionSchema = new Schema({
-  userId: { type: Types.ObjectId, ref: 'User' },
-  prompt: { type: String, required: true },
-  response: { type: String, required: true },
-  sentiment: { type: String },
-  isPro: { type: Boolean, default: false },
-  createdAt: { type: Date, default: Date.now }
-});
-AIInteractionSchema.index({ userId: 1, createdAt: -1 });
-const AIInteraction = model('AIInteraction', AIInteractionSchema);
+// AIInteraction moved to models/AIInteraction.js
 
 async function seed() {
   const adminEmail = process.env.ADMIN_EMAIL || 'admin@ishami.rw';
@@ -348,6 +340,112 @@ async function seed() {
       }
     ]);
   }
+  await Resource.updateOne(
+    { title: 'Ibimenyetso Bimurika' },
+    {
+      $set: {
+        title: 'Ibimenyetso Bimurika',
+        titleKiny: 'Ibimenyetso Bimurika',
+        type: 'PDF',
+        category: "Amategeko y'Umuhanda",
+        premium: false,
+        fileUrl: 'https://docs.google.com/document/d/1hNs7FsuX8A2qmfpWUXv8TpW_SINS03Nl/edit?usp=drive_link&ouid=115249524283556770107&rtpof=true&sd=true',
+        thumbnail: 'https://placehold.co/640x360?text=Ibimenyetso+Bimurika',
+        size: ''
+      }
+    },
+    { upsert: true }
+  );
+  await Resource.updateOne(
+    { title: "Ibibazo ku Amategeko y'Umuhanda (PDF)" },
+    {
+      $set: {
+        title: "Ibibazo ku Amategeko y'Umuhanda (PDF)",
+        titleKiny: "Ibibazo ku Amategeko y'Umuhanda (PDF)",
+        type: 'PDF',
+        category: "Amategeko y'Umuhanda",
+        premium: false,
+        fileUrl: 'https://drive.google.com/file/d/130sYhKdQehDECE262oORiX8_08LNxtbZ/view?usp=drive_link',
+        thumbnail: 'https://placehold.co/640x360?text=Ibibazo+ku+Amategeko',
+      }
+    },
+    { upsert: true }
+  );
+  await Resource.updateOne(
+    { title: "Igazeti y'Amategeko y'Umuhanda (PDF)" },
+    {
+      $set: {
+        title: "Igazeti y'Amategeko y'Umuhanda (PDF)",
+        titleKiny: "Igazeti y'Amategeko y'Umuhanda (PDF)",
+        type: 'PDF',
+        category: "Amategeko y'Umuhanda",
+        premium: false,
+        fileUrl: 'https://drive.google.com/file/d/130sYhKdQehDECE262oORiX8_08LNxtbZ/view?usp=drive_link',
+        thumbnail: 'https://placehold.co/640x360?text=Igazeti+y%27Amategeko',
+      }
+    },
+    { upsert: true }
+  );
+  await Resource.updateOne(
+    { title: "AMATEGEKO Y’UMUHANDA🚨🚔🚨IBIBAZO N’IBISUBIZO" },
+    {
+      $set: {
+        title: "AMATEGEKO Y’UMUHANDA🚨🚔🚨IBIBAZO N’IBISUBIZO",
+        titleKiny: "AMATEGEKO Y’UMUHANDA🚨🚔🚨IBIBAZO N’IBISUBIZO",
+        type: 'Video',
+        category: "Amategeko y'Umuhanda",
+        premium: false,
+        fileUrl: 'https://youtu.be/kueLgkZwagI?si=4woONjSfRP9fqX6k',
+        thumbnail: 'https://img.youtube.com/vi/kueLgkZwagI/maxresdefault.jpg',
+      }
+    },
+    { upsert: true }
+  );
+  await Resource.updateOne(
+    { title: "🚨🚨🚗Ikibazo gikunzwe kubazwa mu Gukorera provisoire" },
+    {
+      $set: {
+        title: "🚨🚨🚗Ikibazo gikunzwe kubazwa mu Gukorera provisoire",
+        titleKiny: "🚨🚨🚗Ikibazo gikunzwe kubazwa mu Gukorera provisoire",
+        type: 'Video',
+        category: "Amategeko y'Umuhanda",
+        premium: false,
+        fileUrl: 'https://youtu.be/goro8MaDq2k?si=YgDYvI4NpS5VBKEv',
+        thumbnail: 'https://img.youtube.com/vi/goro8MaDq2k/maxresdefault.jpg',
+      }
+    },
+    { upsert: true }
+  );
+  await Resource.updateOne(
+    { title: "Impuruza (Alarms) & Ibyapa Byo Ku Muhanda (Traffic Signs)" },
+    {
+      $set: {
+        title: "Impuruza (Alarms) & Ibyapa Byo Ku Muhanda (Traffic Signs)",
+        titleKiny: "Impuruza & Ibyapa Byo Ku Muhanda",
+        type: 'Video',
+        category: "Amategeko y'Umuhanda",
+        premium: false,
+        fileUrl: 'https://youtu.be/kueLgkZwagI?si=4woONjSfRP9fqX6k', // Placeholder, using same for now
+        thumbnail: 'https://img.youtube.com/vi/kueLgkZwagI/maxresdefault.jpg',
+      }
+    },
+    { upsert: true }
+  );
+  await Resource.updateOne(
+    { title: "Kwirinda Impanuka (Road Safety Tips)" },
+    {
+      $set: {
+        title: "Kwirinda Impanuka (Road Safety Tips)",
+        titleKiny: "Kwirinda Impanuka",
+        type: 'Video',
+        category: "Amategeko y'Umuhanda",
+        premium: false,
+        fileUrl: 'https://youtu.be/goro8MaDq2k?si=YgDYvI4NpS5VBKEv', // Placeholder
+        thumbnail: 'https://img.youtube.com/vi/goro8MaDq2k/maxresdefault.jpg',
+      }
+    },
+    { upsert: true }
+  );
 }
 
 // Brevo removed: using Nodemailer SMTP only
@@ -383,6 +481,13 @@ function toDirectDownloadUrl(url) {
       const id = m ? m[1] : (u.searchParams.get('id') || '');
       if (id) {
         return `https://drive.google.com/uc?export=download&id=${id}`;
+      }
+    }
+    if (u.hostname.includes('docs.google.com') && u.pathname.includes('/document/')) {
+      const m = s.match(/\/document\/d\/([^/]+)/);
+      const id = m ? m[1] : '';
+      if (id) {
+        return `https://docs.google.com/document/d/${id}/export?format=pdf`;
       }
     }
   } catch {}
@@ -1489,9 +1594,38 @@ app.put('/api/admin/irembo/:applicationId', authMiddleware, adminOnly, async (re
 
 app.post('/api/admin/resources', authMiddleware, adminOnly, upload.single('file'), async (req, res) => {
   const file = req.file;
-  const { title = file?.originalname || 'Untitled', description = '', premium = false } = req.body || {};
-  const r = await Resource.create({ title, description, premium: String(premium) === 'true' });
-  res.json({ resource: { id: String(r._id), title: r.title, description: r.description, premium: r.premium } });
+  const { 
+    title = file?.originalname || 'Untitled', 
+    titleKiny = '',
+    premium = false,
+    type = 'PDF',
+    category = 'General',
+    fileUrl = '',
+    thumbnail = ''
+  } = req.body || {};
+
+  const r = await Resource.create({ 
+    title, 
+    titleKiny, 
+    type, 
+    category, 
+    premium: String(premium) === 'true', 
+    fileUrl, 
+    thumbnail 
+  });
+  
+  res.json({ 
+    resource: { 
+      id: String(r._id), 
+      title: r.title, 
+      titleKiny: r.titleKiny,
+      type: r.type, 
+      category: r.category,
+      premium: r.premium,
+      fileUrl: r.fileUrl,
+      thumbnail: r.thumbnail
+    } 
+  });
 });
 
 app.delete('/api/admin/resources/:resourceId', authMiddleware, adminOnly, async (req, res) => {

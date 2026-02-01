@@ -1,5 +1,5 @@
 import { motion } from 'motion/react';
-import { FileText, Video, Image as ImageIcon, Download, Lock } from 'lucide-react';
+import { FileText, Video, Image as ImageIcon, Download, Lock, Play } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { resourcesAPI } from '../services/api';
@@ -16,7 +16,41 @@ interface Resource {
   size?: string;
 }
 
-const mockResources: Resource[] = [];
+const mockResources: Resource[] = [
+  {
+    id: 'drive-traffic-questions',
+    title_en: 'Traffic Rules Questions (PDF)',
+    title_kiny: "Ibibazo ku Amategeko y'Umuhanda (PDF)",
+    type: 'PDF',
+    category: "Amategeko y'Umuhanda",
+    isPremium: false,
+    fileUrl: 'https://drive.google.com/uc?export=download&id=130sYhKdQehDECE262oORiX8_08LNxtbZ',
+    thumbnail: undefined,
+    size: undefined,
+  },
+  {
+    id: 'drive-gazette-traffic-rules',
+    title_en: 'Gazette: Traffic Rules (PDF)',
+    title_kiny: "Igazeti y'Amategeko y'Umuhanda (PDF)",
+    type: 'PDF',
+    category: "Amategeko y'Umuhanda",
+    isPremium: false,
+    fileUrl: 'https://drive.google.com/uc?export=download&id=130sYhKdQehDECE262oORiX8_08LNxtbZ',
+    thumbnail: undefined,
+    size: undefined,
+  },
+  {
+    id: 'docs-ibimenyetso-bimurika',
+    title_en: 'Light Signals: Ibimenyetso Bimurika (PDF)',
+    title_kiny: 'Ibimenyetso Bimurika (PDF)',
+    type: 'PDF',
+    category: "Amategeko y'Umuhanda",
+    isPremium: false,
+    fileUrl: 'https://docs.google.com/document/d/1hNs7FsuX8A2qmfpWUXv8TpW_SINS03Nl/export?format=pdf',
+    thumbnail: undefined,
+    size: undefined,
+  },
+];
 
 export default function Resources() {
   const { user } = useAuth();
@@ -51,6 +85,11 @@ export default function Resources() {
     }
     if (resource.isPremium && !user?.isPro) {
       setShowPaywall(true);
+      return;
+    }
+    const isExternal = /^https?:\/\//i.test(resource.fileUrl);
+    if (isExternal) {
+      window.open(resource.fileUrl, '_blank');
       return;
     }
     resourcesAPI.downloadResource(resource.id);
@@ -207,8 +246,17 @@ export default function Resources() {
                     </>
                   ) : (
                     <>
-                      <Download className="w-4 h-4" />
-                      <span>Download</span>
+                      {resource.type === 'Video' ? (
+                        <>
+                          <Play className="w-4 h-4" />
+                          <span>Watch</span>
+                        </>
+                      ) : (
+                        <>
+                          <Download className="w-4 h-4" />
+                          <span>Download</span>
+                        </>
+                      )}
                     </>
                   )}
                 </button>

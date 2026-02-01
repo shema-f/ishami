@@ -1,7 +1,7 @@
 import { Link } from 'react-router';
 import { motion } from 'motion/react';
 import { Zap, Brain, BookOpen, Trophy, Car, ChevronRight, Star, Mail } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { ImageWithFallback } from '../components/figma/ImageWithFallback';
 import { newsletterAPI } from '../services/api';
 import FlipCard from '../components/FlipCard';
@@ -12,27 +12,6 @@ import { toast } from 'sonner';
 export default function Home() {
   const [email, setEmail] = useState('');
   const [subscribed, setSubscribed] = useState(false);
-  const [typedPrimary, setTypedPrimary] = useState('');
-  const [typedSecondary, setTypedSecondary] = useState('');
-  const fullPrimary = 'Learn Rwanda Traffic Rules Easily';
-  const fullSecondary = "Amategeko y'Umuhanda";
-
-  useEffect(() => {
-    let i = 0, j = 0;
-    const speed = 35;
-    const timer = setInterval(() => {
-      if (i < fullPrimary.length) {
-        setTypedPrimary(prev => prev + fullPrimary[i]);
-        i++;
-      } else if (j < fullSecondary.length) {
-        setTypedSecondary(prev => prev + fullSecondary[j]);
-        j++;
-      } else {
-        clearInterval(timer);
-      }
-    }, speed);
-    return () => clearInterval(timer);
-  }, []);
 
   const handleNewsletterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -86,54 +65,52 @@ export default function Home() {
   return (
     <div className="min-h-screen">
       {/* Hero Section */}
-      <section className="relative overflow-hidden py-20 px-4">
+      <section className="relative overflow-hidden py-16 sm:py-20 px-4">
         <div className="absolute inset-0 bg-gradient-to-br from-[#00A3AD]/10 to-purple-500/10 dark:from-[#00A3AD]/20 dark:to-purple-500/20"></div>
         
         <div className="max-w-7xl mx-auto relative z-10">
-          <div className="grid lg:grid-cols-2 gap-12 items-center">
+          <div className="grid lg:grid-cols-2 gap-8 sm:gap-12 items-center">
             <motion.div
+              className="order-2 lg:order-1"
               initial={{ opacity: 0, x: -50 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.6 }}
             >
-              <h1 className="text-gray-900 dark:text-white mb-6">
-                <span className="inline-block">
-                  {typedPrimary}
-                  <span className="inline-block w-0.5 h-6 bg-gray-900 dark:bg-white align-middle ml-1 animate-pulse" />
-                </span>
-                <span className="block text-[#00A3AD] mt-2">
-                  {typedSecondary}
+              <h1 className="text-gray-900 dark:text-white mb-4 sm:mb-6 text-balance">
+                <span className="inline-block">KORA RIMWE - UTSINDE </span>
+                <span className="block text-[#00A3AD] mt-2 text-balance">
+                  Haranira kubona provisoire na permis mu gihe gito
                 </span>
               </h1>
-              <p className="text-gray-600 dark:text-gray-400 mb-8">
-                Master the Rwanda Traffic Code with interactive quizzes, AI-powered assistance, 
-                and immersive 3D simulations. Get ready for your driving test with confidence.
+              <p className="text-gray-600 dark:text-gray-400 mb-6 sm:mb-8 text-sm sm:text-base">
+                Tandukana no guta umwanya mu ma auto ecole wiga kuko ISHAMI APP ikwigisha amategeko y'umuhanda Neza kandi vuba 
+                Mu gihe gito. 
               </p>
               
-              <div className="flex flex-wrap gap-4">
+              <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3 sm:gap-4">
                 <Link
                   to="/quiz"
-                  className="px-8 py-4 bg-gradient-to-r from-[#00A3AD] to-[#008891] text-white rounded-xl hover:shadow-xl hover:shadow-[#00A3AD]/50 transition-all duration-300 flex items-center space-x-2 group"
+                  className="w-full sm:w-auto px-8 py-4 bg-gradient-to-r from-[#00A3AD] to-[#008891] text-white rounded-xl hover:shadow-xl hover:shadow-[#00A3AD]/50 transition-all duration-300 flex items-center justify-center space-x-2 group"
                 >
-                  <span>Start Quiz</span>
+                  <span>Tangira imyitozo</span>
                   <ChevronRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
                 </Link>
                 
                 <Link
                   to="/ai-assistant"
-                  className="px-8 py-4 bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded-xl hover:shadow-xl border border-gray-200 dark:border-gray-700 transition-all duration-300 flex items-center space-x-2"
+                  className="w-full sm:w-auto px-8 py-4 bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded-xl hover:shadow-xl border border-gray-200 dark:border-gray-700 transition-all duration-300 flex items-center justify-center space-x-2"
                 >
                   <Brain className="w-5 h-5" />
-                  <span>Ask AI</span>
+                  <span>Baza Moto‑Sensei</span>
                 </Link>
               </div>
             </motion.div>
 
             <motion.div
+              className="order-1 lg:order-2 relative"
               initial={{ opacity: 0, x: 50 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.6, delay: 0.2 }}
-              className="relative"
             >
               <div className="relative rounded-2xl overflow-hidden shadow-2xl">
                 <ImageWithFallback
@@ -168,6 +145,78 @@ export default function Home() {
               </motion.div>
             </motion.div>
           </div>
+        </div>
+      </section>
+      
+      {/* Sticky CTA (Mobile) */}
+      <div className="fixed bottom-0 left-0 right-0 sm:hidden bg-white/90 dark:bg-gray-800/90 backdrop-blur-xl border-t border-gray-200 dark:border-gray-700 p-3 z-40">
+        <div className="max-w-7xl mx-auto flex gap-3">
+          <Link
+            to="/quiz"
+            className="flex-1 px-4 py-3 bg-gradient-to-r from-[#00A3AD] to-[#008891] text-white rounded-xl text-center"
+          >
+            Tangira imyitozo
+          </Link>
+          <Link
+            to="/ai-assistant"
+            className="flex-1 px-4 py-3 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-xl border border-gray-200 dark:border-gray-600 text-center"
+          >
+            Baza Moto‑Sensei
+          </Link>
+        </div>
+      </div>
+
+      {/* Moto‑Sensei Intro Section */}
+      <section className="py-16 px-4 bg-gradient-to-b from-[#00A3AD]/10 to-transparent">
+        <div className="max-w-7xl mx-auto">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl p-6 sm:p-8 rounded-3xl border border-gray-200/20 dark:border-gray-700/20 shadow-2xl"
+          >
+            <div className="flex flex-col lg:flex-row items-center gap-6">
+              <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-[#00A3AD]/10 dark:bg-[#00A3AD]/20 flex items-center justify-center text-2xl">🧑‍🏫</div>
+              <div className="flex-1 text-center lg:text-left">
+                <h2 className="text-gray-900 dark:text-white mb-2 text-balance">Moto‑Sensei: Umwarimu wa AI (Artificial Intelligence) ugufasha kwiga 
+                  amategeko y’umuhanda</h2>
+                <p className="text-gray-600 dark:text-gray-400 mb-4">
+                  Koresha Moto Sensei ubaza ibibazo bijyanye n'amategeko y'umuhanda	usobanukirwe  kandi ugere ku ntego yawe yo kubona Permi.
+                </p>
+                <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center lg:justify-start">
+                  <Link
+                    to="/ai-assistant"
+                    className="px-6 py-3 bg-gradient-to-r from-[#00A3AD] to-[#008891] text-white rounded-xl hover:shadow-xl transition-all duration-300 text-center"
+                  >
+                    Baza Moto‑Sensei
+                  </Link>
+                  <Link
+                    to="/quiz"
+                    className="px-6 py-3 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-xl border border-gray-200 dark:border-gray-600 text-center"
+                  >
+                    Tangira imyitozo
+                  </Link>
+                </div>
+              </div>
+            </div>
+            <div className="grid sm:grid-cols-3 gap-4 mt-6">
+              <div className="bg-white dark:bg-gray-700 rounded-2xl p-4 border border-gray-200 dark:border-gray-600">
+                <div className="inline-flex p-3 rounded-xl bg-gradient-to-br from-[#00A3AD] to-[#008891] text-white mb-3"><Zap className="w-6 h-6" /></div>
+                <p className="text-gray-900 dark:text-white">Moto Sensei igufasha Kwiga vuba</p>
+                <p className="text-gray-600 dark:text-gray-400 text-sm">Ibibazo bifasha kumenya aho ukeneye kongera imbaraga.</p>
+              </div>
+              <div className="bg-white dark:bg-gray-700 rounded-2xl p-4 border border-gray-200 dark:border-gray-600">
+                <div className="inline-flex p-3 rounded-xl bg-gradient-to-br from-purple-500 to-purple-700 text-white mb-3"><Star className="w-6 h-6" /></div>
+                <p className="text-gray-900 dark:text-white">Moto Sensei Igufasha Kwihugura neza</p>
+                <p className="text-gray-600 dark:text-gray-400 text-sm">Iguha Inyigisho zisobanutse mu Kinyarwanda, ku rwego rwawe.</p>
+              </div>
+              <div className="bg-white dark:bg-gray-700 rounded-2xl p-4 border border-gray-200 dark:border-gray-600">
+                <div className="inline-flex p-3 rounded-xl bg-gradient-to-br from-green-500 to-green-700 text-white mb-3"><Trophy className="w-6 h-6" /></div>
+                <p className="text-gray-900 dark:text-white">Igufasha Gutsinda</p>
+                <p className="text-gray-600 dark:text-gray-400 text-sm">Intego: iyo ukoreshaje ai utsinda ikizami cya provisoire bwa mbere ugikora .</p>
+              </div>
+            </div>
+          </motion.div>
         </div>
       </section>
 

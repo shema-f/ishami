@@ -1,5 +1,5 @@
 import { motion } from 'motion/react';
-import { Trophy, Medal, TrendingUp, Crown, Zap } from 'lucide-react';
+import { Trophy, Medal, TrendingUp, Crown, Zap, Share2, Link as LinkIcon, Copy, Facebook } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { leaderboardAPI } from '../services/api';
 
@@ -10,6 +10,8 @@ export default function Leaderboard() {
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [shareUrl, setShareUrl] = useState<string>('');
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -27,6 +29,20 @@ export default function Leaderboard() {
       mounted = false;
     };
   }, []);
+  
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setShareUrl(`${window.location.origin}/leaderboard`);
+    }
+  }, []);
+  
+  const doCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {}
+  };
   const getRankIcon = (rank: number) => {
     switch (rank) {
       case 1:
@@ -114,6 +130,66 @@ export default function Leaderboard() {
             <div className="flex items-center space-x-2">
               <TrendingUp className="w-6 h-6" />
               <span className="text-sm">Updated in real-time</span>
+            </div>
+          </div>
+        </motion.div>
+
+        {/* Share Buttons */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl rounded-2xl p-6 border border-gray-200/20 dark:border-gray-700/20 shadow-xl mb-8"
+        >
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-2">
+              <Share2 className="w-5 h-5 text-[#00A3AD]" />
+              <span className="text-gray-900 dark:text-white">Share this leaderboard</span>
+            </div>
+            <div className="flex items-center flex-wrap gap-2">
+              <a
+                href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}&quote=${encodeURIComponent('ISHAMI App Leaderboard — Can you beat me?')}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-600 text-white text-xs hover:bg-blue-700"
+              >
+                <Facebook className="w-4 h-4" />
+                Facebook
+              </a>
+              <a
+                href={`https://wa.me/?text=${encodeURIComponent('ISHAMI App Leaderboard — Can you beat me? ' + shareUrl)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-green-500 text-white text-xs hover:bg-green-600"
+              >
+                <span className="font-semibold">WA</span>
+                WhatsApp
+              </a>
+              <a
+                href={`https://t.me/share/url?url=${encodeURIComponent(shareUrl)}&text=${encodeURIComponent('ISHAMI App Leaderboard — Can you beat me?')}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-sky-500 text-white text-xs hover:bg-sky-600"
+              >
+                <span className="font-semibold">TG</span>
+                Telegram
+              </a>
+              <button
+                onClick={doCopy}
+                className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white text-xs hover:bg-gray-300 dark:hover:bg-gray-600"
+              >
+                <Copy className="w-4 h-4" />
+                {copied ? 'Copied!' : 'Copy Link'}
+              </button>
+              <a
+                href={shareUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white text-xs"
+              >
+                <LinkIcon className="w-4 h-4" />
+                Open Link
+              </a>
             </div>
           </div>
         </motion.div>

@@ -61,7 +61,7 @@ export default function Root() {
             >
               <div className="p-6 text-center">
                 <div className="mx-auto w-16 h-16 bg-gradient-to-br from-[#00A3AD] to-[#008891] rounded-2xl flex items-center justify-center mb-4 shadow-lg shadow-[#00A3AD]/30">
-                  <img src="/src/favicon_io/android-chrome-192x192.png" alt="ISHAMI" className="w-12 h-12 rounded-xl" />
+                  <img src="/android-chrome-192x192.png" alt="ISHAMI" className="w-12 h-12 rounded-xl" />
                 </div>
                 <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">Install ISHAMI App</h3>
                 <p className="text-gray-600 dark:text-gray-400 mb-6">

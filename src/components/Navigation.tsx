@@ -28,7 +28,7 @@ export default function Navigation() {
         <div className="flex items-center justify-between h-20">
           {/* Logo */}
           <Link to="/" className="flex items-center space-x-2 group">
-            <img src="/src/favicon_io/android-chrome-192x192.png" alt="ISHAMI" className="w-8 h-8 rounded-lg" />
+            <img src="/android-chrome-192x192.png" alt="ISHAMI" className="w-8 h-8 rounded-lg" />
             <span className="text-gray-900 dark:text-white tracking-tight">
               <span className="font-bold">ISHAMI</span>
             </span>
@@ -55,7 +55,7 @@ export default function Navigation() {
           <div className="hidden lg:flex items-center space-x-4">
             {user?.isPro && (
               <div className="flex items-center space-x-2 bg-gradient-to-r from-yellow-400 to-orange-500 px-3 py-1.5 rounded-full">
-                <img src="/src/favicon_io/favicon-16x16.png" alt="Pro" className="w-4 h-4 rounded" />
+                <img src="/favicon-16x16.png" alt="Pro" className="w-4 h-4 rounded" />
                 <span className="text-white text-sm">Pro</span>
               </div>
             )}

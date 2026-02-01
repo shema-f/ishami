@@ -324,7 +324,7 @@ export default function AdminQuestions() {
               {quizzes.map(q => (
                 <div key={q.id} className="border rounded-xl p-4 bg-white dark:bg-gray-700">
                   <div className="flex items-center space-x-3 mb-2">
-                    <img src={q.image || '/src/favicon_io/android-chrome-192x192.png'} alt="Quiz" className="w-8 h-8 rounded" />
+                    <img src={q.image || '/android-chrome-192x192.png'} alt="Quiz" className="w-8 h-8 rounded" />
                     <div>
                       <p className="text-gray-900 dark:text-white">{q.title}</p>
                       <p className="text-xs text-gray-500">{q.category} • {q.questionCount} questions</p>

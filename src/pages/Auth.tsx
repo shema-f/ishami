@@ -275,7 +275,7 @@ export default function Auth() {
             
             <div className="relative z-10 text-center p-12">
               <motion.img
-                src="/src/favicon_io/android-chrome-192x192.png"
+                src="/android-chrome-192x192.png"
                 alt="ISHAMI"
                 animate={{ scale: [1, 1.05, 1] }}
                 transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
